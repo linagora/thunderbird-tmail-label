@@ -1,0 +1,104 @@
+{
+  "extensionName": {
+    "message": "TMail Labels Sync",
+    "description": "Nom de l'extension"
+  },
+  "extensionDescription": {
+    "message": "Synchronise les labels du serveur TMail/James avec les tags Thunderbird",
+    "description": "Description de l'extension"
+  },
+  "popupTitle": {
+    "message": "Labels TMail",
+    "description": "Titre dans le popup"
+  },
+  "syncNow": {
+    "message": "Synchroniser maintenant",
+    "description": "Bouton de synchronisation manuelle"
+  },
+  "lastSync": {
+    "message": "Dernière sync : $TIME$",
+    "description": "Affiche l'heure de la dernière sync",
+    "placeholders": {
+      "time": {
+        "content": "$1",
+        "example": "10h30"
+      }
+    }
+  },
+  "neverSynced": {
+    "message": "Jamais synchronisé",
+    "description": "Affiché quand jamais synchronisé"
+  },
+  "syncing": {
+    "message": "Synchronisation...",
+    "description": "Affiché pendant la sync"
+  },
+  "syncSuccess": {
+    "message": "Labels synchronisés avec succès",
+    "description": "Message de succès"
+  },
+  "syncError": {
+    "message": "Échec de la sync : $ERROR$",
+    "description": "Message d'erreur",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Connexion expirée"
+      }
+    }
+  },
+  "labelCount": {
+    "message": "$COUNT$ labels trouvés",
+    "description": "Nombre de labels",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "noLabels": {
+    "message": "Aucun label trouvé sur le serveur",
+    "description": "Quand aucun label n'existe"
+  },
+  "settingsTitle": {
+    "message": "Paramètres",
+    "description": "Titre de la section paramètres"
+  },
+  "autoSync": {
+    "message": "Sync auto au démarrage",
+    "description": "Libellé de la case auto-sync"
+  },
+  "syncInterval": {
+    "message": "Intervalle de sync (minutes)",
+    "description": "Paramètre d'intervalle"
+  },
+  "loading": {
+    "message": "Chargement...",
+    "description": "Indicateur de chargement"
+  },
+  "selectAccount": {
+    "message": "Sélectionnez un compte",
+    "description": "Placeholder quand aucun compte sélectionné"
+  },
+  "addLabel": {
+    "message": "Ajouter un label",
+    "description": "Bouton ajouter un label"
+  },
+  "labelName": {
+    "message": "Nom",
+    "description": "Champ nom du label"
+  },
+  "labelColor": {
+    "message": "Couleur",
+    "description": "Champ couleur du label"
+  },
+  "cancel": {
+    "message": "Annuler",
+    "description": "Bouton annuler"
+  },
+  "create": {
+    "message": "Créer",
+    "description": "Bouton créer"
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "extensionName": {
+    "message": "TMail Labels Sync",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Synchronize TMail/James server labels with Thunderbird tags",
+    "description": "Description of the extension"
+  },
+  "popupTitle": {
+    "message": "TMail Labels",
+    "description": "Title in popup"
+  },
+  "syncNow": {
+    "message": "Sync Labels Now",
+    "description": "Button to manually sync labels"
+  },
+  "lastSync": {
+    "message": "Last sync: $TIME$",
+    "description": "Shows last sync time",
+    "placeholders": {
+      "time": {
+        "content": "$1",
+        "example": "10:30 AM"
+      }
+    }
+  },
+  "neverSynced": {
+    "message": "Never synced",
+    "description": "Shown when labels have never been synced"
+  },
+  "syncing": {
+    "message": "Syncing...",
+    "description": "Shown during sync"
+  },
+  "syncSuccess": {
+    "message": "Labels synced successfully",
+    "description": "Success message"
+  },
+  "syncError": {
+    "message": "Sync failed: $ERROR$",
+    "description": "Error message",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Connection timeout"
+      }
+    }
+  },
+  "labelCount": {
+    "message": "$COUNT$ labels found",
+    "description": "Number of labels",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "noLabels": {
+    "message": "No labels found on server",
+    "description": "When no labels exist"
+  },
+  "settingsTitle": {
+    "message": "Settings",
+    "description": "Settings section title"
+  },
+  "autoSync": {
+    "message": "Auto-sync on startup",
+    "description": "Auto-sync checkbox label"
+  },
+  "syncInterval": {
+    "message": "Sync interval (minutes)",
+    "description": "Sync interval setting"
+  },
+  "loading": {
+    "message": "Loading...",
+    "description": "Loading indicator"
+  },
+  "selectAccount": {
+    "message": "Select an account",
+    "description": "Placeholder when no account selected"
+  },
+  "addLabel": {
+    "message": "Add Label",
+    "description": "Add label button"
+  },
+  "labelName": {
+    "message": "Name",
+    "description": "Label name field"
+  },
+  "labelColor": {
+    "message": "Color",
+    "description": "Label color field"
+  },
+  "cancel": {
+    "message": "Cancel",
+    "description": "Cancel button"
+  },
+  "create": {
+    "message": "Create",
+    "description": "Create button"
+  }
+}

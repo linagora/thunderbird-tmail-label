@@ -1,0 +1,51 @@
+{
+  "manifest_version": 2,
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.1.0",
+  "author": "Yadd",
+  "homepage_url": "https://github.com/yadd/thunderbird-labels",
+  "applications": {
+    "gecko": {
+      "id": "thunderbird-labels@yadd.github.io",
+      "strict_min_version": "128.0"
+    }
+  },
+  "default_locale": "en",
+  "permissions": [
+    "messagesRead",
+    "messagesTags",
+    "messagesTagsList",
+    "accountsRead",
+    "storage"
+  ],
+  "experiment_apis": {
+    "imapMetadata": {
+      "schema": "experiment-apis/imap-metadata/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["imapMetadata"]],
+        "script": "experiment-apis/imap-metadata/api.js"
+      }
+    }
+  },
+  "background": {
+    "scripts": [
+      "src/core/constants.js",
+      "src/core/label-sync.js",
+      "src/background.js"
+    ]
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png"
+  },
+  "browser_action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
+    "default_title": "__MSG_extensionName__",
+    "default_popup": "src/ui/popup.html"
+  }
+}

@@ -1,0 +1,332 @@
+[
+  {
+    "namespace": "imapMetadata",
+    "description": "API to access IMAP METADATA for TMail labels synchronization. Note: Labels are read-only via IMAP METADATA. CRUD operations use TMail WebAdmin API.",
+    "types": [
+      {
+        "id": "TMailLabel",
+        "type": "object",
+        "description": "A TMail label definition",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the label (from METADATA path)"
+          },
+          "keyword": {
+            "type": "string",
+            "description": "IMAP keyword (UUID) associated with this label"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable name of the label"
+          },
+          "color": {
+            "type": "string",
+            "optional": true,
+            "description": "Color of the label in hex format"
+          }
+        }
+      },
+      {
+        "id": "MetadataResult",
+        "type": "object",
+        "description": "Result of a GETMETADATA operation",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "TMailLabel"
+            },
+            "optional": true
+          },
+          "error": {
+            "type": "string",
+            "optional": true
+          }
+        }
+      },
+      {
+        "id": "ImapAccount",
+        "type": "object",
+        "description": "An IMAP account that may support TMail labels",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Account identifier"
+          },
+          "name": {
+            "type": "string",
+            "description": "Account display name"
+          },
+          "serverHost": {
+            "type": "string",
+            "description": "IMAP server hostname"
+          },
+          "username": {
+            "type": "string",
+            "description": "Username for this account"
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "getLabels",
+        "type": "function",
+        "description": "Fetch TMail labels from IMAP METADATA for a specific account/folder",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string",
+            "description": "The account ID to fetch labels from"
+          },
+          {
+            "name": "folderPath",
+            "type": "string",
+            "optional": true,
+            "default": "INBOX",
+            "description": "The folder path (defaults to INBOX)"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "$ref": "MetadataResult"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "createLabel",
+        "type": "function",
+        "description": "Create a new TMail label on the server",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string",
+            "description": "The account ID"
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "description": "Display name for the new label"
+          },
+          {
+            "name": "color",
+            "type": "string",
+            "optional": true,
+            "description": "Color in hex format"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "label": { "$ref": "TMailLabel", "optional": true },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "updateLabel",
+        "type": "function",
+        "description": "Update an existing TMail label",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "labelId",
+            "type": "string",
+            "description": "The label ID to update"
+          },
+          {
+            "name": "displayName",
+            "type": "string",
+            "optional": true
+          },
+          {
+            "name": "color",
+            "type": "string",
+            "optional": true
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "deleteLabel",
+        "type": "function",
+        "description": "Delete a TMail label from the server",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "labelId",
+            "type": "string"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "getImapAccounts",
+        "type": "function",
+        "description": "Get list of IMAP accounts",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "ImapAccount"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "testConnection",
+        "type": "function",
+        "description": "Test if an account supports TMail METADATA labels",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "supported": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "setWebAdminUrl",
+        "type": "function",
+        "description": "Set TMail WebAdmin API URL for an account (for CRUD operations)",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "webAdminUrl",
+            "type": "string",
+            "description": "WebAdmin API base URL (e.g., http://localhost:8000)"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "getWebAdminUrl",
+        "type": "function",
+        "description": "Get TMail WebAdmin API URL for an account",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "webAdminUrl": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "name": "onLabelsChanged",
+        "type": "function",
+        "description": "Fired when labels change on the server",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string"
+          },
+          {
+            "name": "labels",
+            "type": "array",
+            "items": {
+              "$ref": "TMailLabel"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
