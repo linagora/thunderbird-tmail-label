@@ -4,16 +4,16 @@ A Thunderbird extension that synchronizes labels from TMail/James server with Th
 
 ## Features
 
-- **Bi-directional sync**: Labels created on TMail server appear as Thunderbird tags
+- **Uni-directional sync**: Labels created on TMail server appear as Thunderbird tags
 - **Native integration**: Uses Thunderbird's built-in tag UI (columns, context menus, etc.)
-- **CRUD operations**: Create, update, and delete labels from Thunderbird
+- **CRUD operations**: Create, update, and delete labels on messages  from Thunderbird
 - **Auto-sync**: Configurable automatic synchronization on startup and at intervals
 - **Multi-account**: Supports multiple IMAP accounts
 
 ## Requirements
 
 - Thunderbird 128 or later
-- TMail/James server with IMAP METADATA extension support (RFC 5464)
+- TMail server 1.0.16 or later
 
 ## Installation
 
