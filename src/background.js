@@ -1,5 +1,5 @@
 /**
- * TMail Labels Sync - Background Script
+ * Twake Mail for Thunderbird - Background Script
  *
  * Main entry point for the extension. Handles:
  * - Initialization and auto-sync on startup
@@ -14,7 +14,7 @@ let syncIntervalId = null;
  * Initialize the extension
  */
 async function init() {
-  console.log("TMail Labels: Extension starting");
+  console.log("Twake Mail: Extension starting");
 
   // Initialize the sync service
   await LabelSyncService.init();
@@ -24,11 +24,11 @@ async function init() {
 
   // Auto-sync on startup if enabled
   if (settings.autoSyncOnStartup) {
-    console.log("TMail Labels: Running auto-sync on startup");
+    console.log("Twake Mail: Running auto-sync on startup");
     try {
       await LabelSyncService.syncAll();
     } catch (error) {
-      console.error("TMail Labels: Auto-sync failed", error);
+      console.error("Twake Mail: Auto-sync failed", error);
     }
   }
 
@@ -37,7 +37,7 @@ async function init() {
     setupPeriodicSync(settings.syncIntervalMinutes);
   }
 
-  console.log("TMail Labels: Extension initialized");
+  console.log("Twake Mail: Extension initialized");
 }
 
 /**
@@ -46,15 +46,15 @@ async function init() {
 async function loadSettings() {
   try {
     const data = await browser.storage.local.get(
-      TMAIL_LABELS.STORAGE_KEYS.SETTINGS
+      TWAKE_MAIL.STORAGE_KEYS.SETTINGS
     );
     return {
-      ...TMAIL_LABELS.DEFAULT_SETTINGS,
-      ...(data[TMAIL_LABELS.STORAGE_KEYS.SETTINGS] || {}),
+      ...TWAKE_MAIL.DEFAULT_SETTINGS,
+      ...(data[TWAKE_MAIL.STORAGE_KEYS.SETTINGS] || {}),
     };
   } catch (error) {
-    console.error("TMail Labels: Failed to load settings", error);
-    return TMAIL_LABELS.DEFAULT_SETTINGS;
+    console.error("Twake Mail: Failed to load settings", error);
+    return TWAKE_MAIL.DEFAULT_SETTINGS;
   }
 }
 
@@ -63,7 +63,7 @@ async function loadSettings() {
  */
 async function saveSettings(settings) {
   await browser.storage.local.set({
-    [TMAIL_LABELS.STORAGE_KEYS.SETTINGS]: settings,
+    [TWAKE_MAIL.STORAGE_KEYS.SETTINGS]: settings,
   });
 }
 
@@ -80,22 +80,22 @@ function setupPeriodicSync(intervalMinutes) {
 
   const intervalMs = intervalMinutes * 60 * 1000;
   syncIntervalId = setInterval(async () => {
-    console.log("TMail Labels: Running periodic sync");
+    console.log("Twake Mail: Running periodic sync");
     try {
       await LabelSyncService.syncAll();
     } catch (error) {
-      console.error("TMail Labels: Periodic sync failed", error);
+      console.error("Twake Mail: Periodic sync failed", error);
     }
   }, intervalMs);
 
-  console.log("TMail Labels: Periodic sync set to", intervalMinutes, "minutes");
+  console.log("Twake Mail: Periodic sync set to", intervalMinutes, "minutes");
 }
 
 /**
  * Handle messages from popup and content scripts
  */
 browser.runtime.onMessage.addListener(async (message, sender) => {
-  console.log("TMail Labels: Received message", message.type);
+  console.log("Twake Mail: Received message", message.type);
 
   switch (message.type) {
     case "SYNC_ALL":
@@ -123,7 +123,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
       return handleTestConnection(message.accountId);
 
     default:
-      console.warn("TMail Labels: Unknown message type", message.type);
+      console.warn("Twake Mail: Unknown message type", message.type);
       return { success: false, error: "Unknown message type" };
   }
 });
@@ -204,5 +204,5 @@ async function handleTestConnection(accountId) {
 
 // Start the extension
 init().catch((error) => {
-  console.error("TMail Labels: Failed to initialize", error);
+  console.error("Twake Mail: Failed to initialize", error);
 });

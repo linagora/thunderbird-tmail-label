@@ -1,15 +1,19 @@
 {
   "extensionName": {
-    "message": "TMail Labels Sync",
+    "message": "Twake Mail pour Thunderbird",
     "description": "Nom de l'extension"
   },
   "extensionDescription": {
-    "message": "Synchronise les labels du serveur TMail/James avec les tags Thunderbird",
+    "message": "Fonctionnalités Twake Mail pour Thunderbird : synchronisation des labels et plus encore",
     "description": "Description de l'extension"
   },
   "popupTitle": {
-    "message": "Labels TMail",
+    "message": "Twake Mail",
     "description": "Titre dans le popup"
+  },
+  "labelsFeatureTitle": {
+    "message": "Labels",
+    "description": "Titre de la section Labels"
   },
   "syncNow": {
     "message": "Synchroniser maintenant",

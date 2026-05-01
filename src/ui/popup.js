@@ -1,5 +1,5 @@
 /**
- * TMail Labels Popup Script
+ * Twake Mail for Thunderbird - Popup Script
  */
 
 // State

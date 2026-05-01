@@ -1,5 +1,5 @@
 /**
- * TMail Labels Sync - Label Synchronization Service
+ * Twake Mail for Thunderbird - Label Synchronization Service
  *
  * This service manages the synchronization between TMail server labels
  * and Thunderbird native tags. It maintains a mapping between:
@@ -11,7 +11,7 @@ const LabelSyncService = {
   // State
   _initialized: false,
   _syncing: false,
-  _syncStatus: TMAIL_LABELS.SYNC_STATUS.IDLE,
+  _syncStatus: TWAKE_MAIL.SYNC_STATUS.IDLE,
   _lastSyncTime: null,
 
   // Label mapping: accountId -> { labelId -> { tmailLabel, tbTagKey } }
@@ -26,7 +26,7 @@ const LabelSyncService = {
   async init() {
     if (this._initialized) return;
 
-    console.log("TMail Labels: Initializing sync service");
+    console.log("Twake Mail: Initializing sync service");
 
     // Load saved state
     await this._loadState();
@@ -35,7 +35,7 @@ const LabelSyncService = {
     this._setupTagListeners();
 
     this._initialized = true;
-    console.log("TMail Labels: Sync service initialized");
+    console.log("Twake Mail: Sync service initialized");
   },
 
   /**
@@ -44,24 +44,24 @@ const LabelSyncService = {
   async _loadState() {
     try {
       const data = await browser.storage.local.get([
-        TMAIL_LABELS.STORAGE_KEYS.LAST_SYNC,
-        TMAIL_LABELS.STORAGE_KEYS.LABEL_MAP,
-        TMAIL_LABELS.STORAGE_KEYS.SETTINGS,
+        TWAKE_MAIL.STORAGE_KEYS.LAST_SYNC,
+        TWAKE_MAIL.STORAGE_KEYS.LABEL_MAP,
+        TWAKE_MAIL.STORAGE_KEYS.SETTINGS,
       ]);
 
-      this._lastSyncTime = data[TMAIL_LABELS.STORAGE_KEYS.LAST_SYNC] || null;
+      this._lastSyncTime = data[TWAKE_MAIL.STORAGE_KEYS.LAST_SYNC] || null;
 
       // Restore label map
-      const savedMap = data[TMAIL_LABELS.STORAGE_KEYS.LABEL_MAP];
+      const savedMap = data[TWAKE_MAIL.STORAGE_KEYS.LABEL_MAP];
       if (savedMap) {
         for (const [accountId, labels] of Object.entries(savedMap)) {
           this._labelMap.set(accountId, new Map(Object.entries(labels)));
         }
       }
 
-      console.log("TMail Labels: Loaded state, last sync:", this._lastSyncTime);
+      console.log("Twake Mail: Loaded state, last sync:", this._lastSyncTime);
     } catch (error) {
-      console.error("TMail Labels: Failed to load state", error);
+      console.error("Twake Mail: Failed to load state", error);
     }
   },
 
@@ -77,11 +77,11 @@ const LabelSyncService = {
       }
 
       await browser.storage.local.set({
-        [TMAIL_LABELS.STORAGE_KEYS.LAST_SYNC]: this._lastSyncTime,
-        [TMAIL_LABELS.STORAGE_KEYS.LABEL_MAP]: labelMapObj,
+        [TWAKE_MAIL.STORAGE_KEYS.LAST_SYNC]: this._lastSyncTime,
+        [TWAKE_MAIL.STORAGE_KEYS.LABEL_MAP]: labelMapObj,
       });
     } catch (error) {
-      console.error("TMail Labels: Failed to save state", error);
+      console.error("Twake Mail: Failed to save state", error);
     }
   },
 
@@ -112,29 +112,29 @@ const LabelSyncService = {
    */
   async syncAll() {
     if (this._syncing) {
-      console.log("TMail Labels: Sync already in progress");
+      console.log("Twake Mail: Sync already in progress");
       return;
     }
 
     this._syncing = true;
-    this._syncStatus = TMAIL_LABELS.SYNC_STATUS.SYNCING;
+    this._syncStatus = TWAKE_MAIL.SYNC_STATUS.SYNCING;
 
     try {
       const accounts = await browser.imapMetadata.getImapAccounts();
-      console.log("TMail Labels: Syncing", accounts.length, "IMAP accounts");
+      console.log("Twake Mail: Syncing", accounts.length, "IMAP accounts");
 
       for (const account of accounts) {
         await this.syncAccount(account.id);
       }
 
       this._lastSyncTime = Date.now();
-      this._syncStatus = TMAIL_LABELS.SYNC_STATUS.SUCCESS;
+      this._syncStatus = TWAKE_MAIL.SYNC_STATUS.SUCCESS;
       await this._saveState();
 
-      console.log("TMail Labels: Sync completed successfully");
+      console.log("Twake Mail: Sync completed successfully");
     } catch (error) {
-      console.error("TMail Labels: Sync failed", error);
-      this._syncStatus = TMAIL_LABELS.SYNC_STATUS.ERROR;
+      console.error("Twake Mail: Sync failed", error);
+      this._syncStatus = TWAKE_MAIL.SYNC_STATUS.ERROR;
       throw error;
     } finally {
       this._syncing = false;
@@ -145,14 +145,14 @@ const LabelSyncService = {
    * Sync labels for a specific account
    */
   async syncAccount(accountId) {
-    console.log("TMail Labels: Syncing account", accountId);
+    console.log("Twake Mail: Syncing account", accountId);
 
     // Fetch labels from TMail server
     const result = await browser.imapMetadata.getLabels(accountId);
 
     if (!result.success) {
       console.warn(
-        "TMail Labels: Failed to fetch labels for account",
+        "Twake Mail: Failed to fetch labels for account",
         accountId,
         result.error
       );
@@ -160,7 +160,7 @@ const LabelSyncService = {
     }
 
     const serverLabels = result.labels || [];
-    console.log("TMail Labels: Found", serverLabels.length, "labels on server");
+    console.log("Twake Mail: Found", serverLabels.length, "labels on server");
 
     // Get current Thunderbird tags
     const tbTags = await browser.messages.tags.list();
@@ -193,9 +193,9 @@ const LabelSyncService = {
         if (!isNativeTag) {
           try {
             await browser.messages.tags.delete(mapping.tbTagKey);
-            console.log("TMail Labels: Removed deleted label", labelId);
+            console.log("Twake Mail: Removed deleted label", labelId);
           } catch (error) {
-            console.warn("TMail Labels: Failed to delete orphaned tag", error);
+            console.warn("Twake Mail: Failed to delete orphaned tag", error);
           }
         }
         accountLabels.delete(labelId);
@@ -210,11 +210,11 @@ const LabelSyncService = {
    * Maps TMail labels to native TB tags ($label1-5) based on order
    */
   async _syncLabelToThunderbird(accountId, label, accountLabels, tbTagsByKey, labelIndex) {
-    console.log("TMail Labels: Syncing label", label.id, label.displayName, "index:", labelIndex);
+    console.log("Twake Mail: Syncing label", label.id, label.displayName, "index:", labelIndex);
 
     // Use native TB tag keys for first 5 labels
     const nativeKeys = ["$label1", "$label2", "$label3", "$label4", "$label5"];
-    const tbTagKey = labelIndex < 5 ? nativeKeys[labelIndex] : `tmail_${labelIndex}`;
+    const tbTagKey = labelIndex < 5 ? nativeKeys[labelIndex] : `twake_${labelIndex}`;
 
     // Check if we already have a mapping for this label
     const existingMapping = accountLabels.get(label.id);
@@ -239,9 +239,9 @@ const LabelSyncService = {
         if (needsUpdate) {
           try {
             await browser.messages.tags.update(tbTagKey, updates);
-            console.log("TMail Labels: Updated tag", tbTagKey, updates);
+            console.log("Twake Mail: Updated tag", tbTagKey, updates);
           } catch (e) {
-            console.warn("TMail Labels: Could not update tag", e);
+            console.warn("Twake Mail: Could not update tag", e);
           }
         }
       }
@@ -261,9 +261,9 @@ const LabelSyncService = {
           tag: label.displayName,
           color: color,
         });
-        console.log("TMail Labels: Updated existing tag", tbTagKey, "to", label.displayName);
+        console.log("Twake Mail: Updated existing tag", tbTagKey, "to", label.displayName);
       } catch (e) {
-        console.warn("TMail Labels: Could not update tag", tbTagKey, e);
+        console.warn("Twake Mail: Could not update tag", tbTagKey, e);
       }
 
       accountLabels.set(label.id, {
@@ -284,9 +284,9 @@ const LabelSyncService = {
           tbTagKey: newKey,
         });
 
-        console.log("TMail Labels: Created tag", newKey, label.displayName);
+        console.log("Twake Mail: Created tag", newKey, label.displayName);
       } catch (error) {
-        console.error("TMail Labels: Failed to create tag", tbTagKey, error);
+        console.error("Twake Mail: Failed to create tag", tbTagKey, error);
       }
     }
   },
@@ -305,8 +305,8 @@ const LabelSyncService = {
    */
   _getNextColor() {
     const color =
-      TMAIL_LABELS.DEFAULT_COLORS[
-        this._colorIndex % TMAIL_LABELS.DEFAULT_COLORS.length
+      TWAKE_MAIL.DEFAULT_COLORS[
+        this._colorIndex % TWAKE_MAIL.DEFAULT_COLORS.length
       ];
     this._colorIndex++;
     return color;
