@@ -165,6 +165,7 @@ const LabelSyncService = {
     // Get current Thunderbird tags
     const tbTags = await browser.messages.tags.list();
     const tbTagsByKey = new Map(tbTags.map((t) => [t.key, t]));
+    const tbTagsByName = new Map(tbTags.map((t) => [t.tag.toLowerCase(), t]));
 
     // Get or create label map for this account
     if (!this._labelMap.has(accountId)) {
@@ -172,31 +173,25 @@ const LabelSyncService = {
     }
     const accountLabels = this._labelMap.get(accountId);
 
-    // Sync each server label to Thunderbird (in order, mapping to $label1-5)
-    for (let i = 0; i < serverLabels.length; i++) {
+    for (const label of serverLabels) {
       await this._syncLabelToThunderbird(
         accountId,
-        serverLabels[i],
+        label,
         accountLabels,
         tbTagsByKey,
-        i
+        tbTagsByName
       );
     }
 
-    // Remove labels that no longer exist on server
-    // BUT never delete native Thunderbird tags ($labelX)
+    // Remove tags for labels that no longer exist on the server
     const serverLabelIds = new Set(serverLabels.map((l) => l.id));
     for (const [labelId, mapping] of accountLabels) {
       if (!serverLabelIds.has(labelId)) {
-        // Only delete if it's not a native TB tag
-        const isNativeTag = mapping.tbTagKey.startsWith("$label");
-        if (!isNativeTag) {
-          try {
-            await browser.messages.tags.delete(mapping.tbTagKey);
-            console.log("Twake Mail: Removed deleted label", labelId);
-          } catch (error) {
-            console.warn("Twake Mail: Failed to delete orphaned tag", error);
-          }
+        try {
+          await browser.messages.tags.delete(mapping.tbTagKey);
+          console.log("Twake Mail: Removed deleted label", labelId);
+        } catch (error) {
+          console.warn("Twake Mail: Failed to delete orphaned tag", error);
         }
         accountLabels.delete(labelId);
       }
@@ -206,15 +201,15 @@ const LabelSyncService = {
   },
 
   /**
-   * Sync a single TMail label to Thunderbird
-   * Maps TMail labels to native TB tags ($label1-5) based on order
+   * Sync a single Twake Mail label to Thunderbird.
+   * The keyword is the IMAP flag Twake Mail sets on messages — it must be
+   * used as the TB tag key so the two sides share the same IMAP keyword.
    */
-  async _syncLabelToThunderbird(accountId, label, accountLabels, tbTagsByKey, labelIndex) {
-    console.log("Twake Mail: Syncing label", label.id, label.displayName, "index:", labelIndex);
+  async _syncLabelToThunderbird(accountId, label, accountLabels, tbTagsByKey, tbTagsByName) {
+    console.log("Twake Mail: Syncing label", label.id, label.displayName);
 
-    // Use native TB tag keys for first 5 labels
-    const nativeKeys = ["$label1", "$label2", "$label3", "$label4", "$label5"];
-    const tbTagKey = labelIndex < 5 ? nativeKeys[labelIndex] : `twake_${labelIndex}`;
+    // The keyword is the shared IMAP keyword; use it verbatim as the TB tag key.
+    const tbTagKey = label.keyword.toLowerCase();
 
     // Check if we already have a mapping for this label
     const existingMapping = accountLabels.get(label.id);
@@ -271,6 +266,19 @@ const LabelSyncService = {
         tbTagKey: tbTagKey,
       });
     } else {
+      // If a tag with the same display name already exists under a different key
+      // (e.g. left over from a previous sync using $label1-5), remove it first.
+      const conflicting = tbTagsByName.get(label.displayName.toLowerCase());
+      if (conflicting && conflicting.key !== tbTagKey) {
+        try {
+          await browser.messages.tags.delete(conflicting.key);
+          tbTagsByKey.delete(conflicting.key);
+          console.log("Twake Mail: Removed stale tag", conflicting.key, "for", label.displayName);
+        } catch (e) {
+          console.warn("Twake Mail: Could not remove stale tag", conflicting.key, e);
+        }
+      }
+
       // Create new tag
       try {
         const newKey = await browser.messages.tags.create(
@@ -289,15 +297,6 @@ const LabelSyncService = {
         console.error("Twake Mail: Failed to create tag", tbTagKey, error);
       }
     }
-  },
-
-  /**
-   * Convert TMail keyword (UUID) to Thunderbird tag key format
-   * TB tag keys must be lowercase and alphanumeric
-   */
-  _keywordToTagKey(keyword) {
-    // Remove dashes and make lowercase
-    return keyword.replace(/-/g, "").toLowerCase();
   },
 
   /**
