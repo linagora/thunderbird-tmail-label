@@ -4,11 +4,13 @@ A Thunderbird extension that synchronizes labels from TMail/James server with Th
 
 ## Features
 
-- **Uni-directional sync**: Labels created on TMail server appear as Thunderbird tags
+- **Read-only sync**: Labels defined on the TMail server appear as Thunderbird tags
 - **Native integration**: Uses Thunderbird's built-in tag UI (columns, context menus, etc.)
-- **CRUD operations**: Create, update, and delete labels on messages  from Thunderbird
 - **Auto-sync**: Configurable automatic synchronization on startup and at intervals
 - **Multi-account**: Supports multiple IMAP accounts
+
+> **Note**: Labels are read-only via IMAP METADATA. Creating or deleting labels must be done
+> directly on the server (e.g. via Twake Mail Admin). This extension only reads and displays them.
 
 ## Requirements
 
@@ -44,11 +46,12 @@ TMail/James stores labels as IMAP METADATA entries:
 ```
 
 This extension:
-1. Fetches labels using IMAP `GETMETADATA` command
+1. Fetches labels from the server using IMAP `GETMETADATA` (read-only)
 2. Creates corresponding Thunderbird tags with matching keywords
-3. Syncs changes back to the server using `SETMETADATA`
 
 Since the IMAP keyword is shared between TMail and Thunderbird, applying a tag to a message automatically applies the label on the server.
+
+Labels can only be created or deleted on the server side (e.g. via Twake Mail Admin or the WebAdmin API).
 
 ## Testing with Docker
 

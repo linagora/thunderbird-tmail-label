@@ -80,25 +80,5 @@
   "selectAccount": {
     "message": "Sélectionnez un compte",
     "description": "Placeholder quand aucun compte sélectionné"
-  },
-  "addLabel": {
-    "message": "Ajouter un label",
-    "description": "Bouton ajouter un label"
-  },
-  "labelName": {
-    "message": "Nom",
-    "description": "Champ nom du label"
-  },
-  "labelColor": {
-    "message": "Couleur",
-    "description": "Champ couleur du label"
-  },
-  "cancel": {
-    "message": "Annuler",
-    "description": "Bouton annuler"
-  },
-  "create": {
-    "message": "Créer",
-    "description": "Bouton créer"
   }
 }

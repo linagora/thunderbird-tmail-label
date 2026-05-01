@@ -135,39 +135,6 @@ section {
   color: #666;
 }
 
-.list-item .actions {
-  display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.list-item:hover .actions {
-  opacity: 1;
-}
-
-.list-item .action-btn {
-  padding: 4px 8px;
-  background: transparent;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.list-item .action-btn:hover {
-  background: #f0f0f0;
-}
-
-.list-item .action-btn.delete {
-  color: #d13438;
-  border-color: #d13438;
-}
-
-.list-item .action-btn.delete:hover {
-  background: #fde7e9;
-}
-
 /* Label color dot */
 .label-color {
   width: 12px;
@@ -238,13 +205,6 @@ section {
   to { transform: rotate(360deg); }
 }
 
-/* Actions bar */
-.actions {
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-}
-
 /* Settings */
 .settings-section {
   margin-top: 16px;
@@ -288,91 +248,3 @@ details summary:hover {
   font-size: 13px;
 }
 
-/* Dialog */
-.dialog {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.dialog.hidden {
-  display: none;
-}
-
-.dialog-content {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  min-width: 280px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-.dialog-content h3 {
-  font-size: 16px;
-  margin-bottom: 16px;
-}
-
-.form-group {
-  margin-bottom: 12px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 4px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-group input[type="text"] {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 13px;
-}
-
-.form-group input[type="text"]:focus {
-  outline: none;
-  border-color: #0078d4;
-  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
-}
-
-/* Color picker buttons */
-.color-picker {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.color-btn {
-  width: 28px;
-  height: 28px;
-  border: 2px solid transparent;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.color-btn:hover {
-  transform: scale(1.1);
-}
-
-.color-btn.selected {
-  border-color: #333;
-  box-shadow: 0 0 0 2px white, 0 0 0 4px #333;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}

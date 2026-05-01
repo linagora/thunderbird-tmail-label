@@ -1,7 +1,7 @@
 [
   {
     "namespace": "imapMetadata",
-    "description": "API to access IMAP METADATA for TMail labels synchronization. Note: Labels are read-only via IMAP METADATA. CRUD operations use TMail WebAdmin API.",
+    "description": "API to access IMAP METADATA for TMail labels synchronization. Labels are read-only: only GETMETADATA is used.",
     "types": [
       {
         "id": "TMailLabel",
@@ -103,113 +103,6 @@
         ]
       },
       {
-        "name": "createLabel",
-        "type": "function",
-        "description": "Create a new TMail label on the server",
-        "async": "callback",
-        "parameters": [
-          {
-            "name": "accountId",
-            "type": "string",
-            "description": "The account ID"
-          },
-          {
-            "name": "displayName",
-            "type": "string",
-            "description": "Display name for the new label"
-          },
-          {
-            "name": "color",
-            "type": "string",
-            "optional": true,
-            "description": "Color in hex format"
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" },
-                  "label": { "$ref": "TMailLabel", "optional": true },
-                  "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "updateLabel",
-        "type": "function",
-        "description": "Update an existing TMail label",
-        "async": "callback",
-        "parameters": [
-          {
-            "name": "accountId",
-            "type": "string"
-          },
-          {
-            "name": "labelId",
-            "type": "string",
-            "description": "The label ID to update"
-          },
-          {
-            "name": "displayName",
-            "type": "string",
-            "optional": true
-          },
-          {
-            "name": "color",
-            "type": "string",
-            "optional": true
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" },
-                  "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "deleteLabel",
-        "type": "function",
-        "description": "Delete a TMail label from the server",
-        "async": "callback",
-        "parameters": [
-          {
-            "name": "accountId",
-            "type": "string"
-          },
-          {
-            "name": "labelId",
-            "type": "string"
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" },
-                  "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
         "name": "getImapAccounts",
         "type": "function",
         "description": "Get list of IMAP accounts",
@@ -248,59 +141,6 @@
                 "properties": {
                   "supported": { "type": "boolean" },
                   "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "setWebAdminUrl",
-        "type": "function",
-        "description": "Set TMail WebAdmin API URL for an account (for CRUD operations)",
-        "async": "callback",
-        "parameters": [
-          {
-            "name": "accountId",
-            "type": "string"
-          },
-          {
-            "name": "webAdminUrl",
-            "type": "string",
-            "description": "WebAdmin API base URL (e.g., http://localhost:8000)"
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" }
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "name": "getWebAdminUrl",
-        "type": "function",
-        "description": "Get TMail WebAdmin API URL for an account",
-        "async": "callback",
-        "parameters": [
-          {
-            "name": "accountId",
-            "type": "string"
-          },
-          {
-            "name": "callback",
-            "type": "function",
-            "parameters": [
-              {
-                "type": "object",
-                "properties": {
-                  "webAdminUrl": { "type": "string", "optional": true }
                 }
               }
             ]
