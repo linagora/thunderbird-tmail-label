@@ -1,9 +1,9 @@
 /**
- * TMail Labels Sync - Constants
+ * Twake Mail for Thunderbird - Constants
  */
 
-const TMAIL_LABELS = {
-  // IMAP METADATA path prefix for TMail labels
+const TWAKE_MAIL = {
+  // IMAP METADATA path prefix for Twake Mail labels
   METADATA_PATH: "/private/vendor/tmail/labels",
 
   // Storage keys
@@ -20,7 +20,7 @@ const TMAIL_LABELS = {
     enabledAccounts: [], // Empty = all IMAP accounts
   },
 
-  // Default colors for labels (used when TMail doesn't provide one)
+  // Default colors for labels (used when server doesn't provide one)
   DEFAULT_COLORS: [
     "#FF0000", // Red
     "#FF9900", // Orange

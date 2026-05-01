@@ -1,21 +1,21 @@
-# TMail Labels Sync for Thunderbird
+# Twake Mail for Thunderbird
 
-A Thunderbird extension that synchronizes labels from TMail/James server with Thunderbird's native tag system.
+A Thunderbird extension that brings Twake Mail features to Thunderbird. The first feature is label synchronization: labels defined on the Twake Mail server appear as native Thunderbird tags.
 
 ## Features
 
-- **Read-only sync**: Labels defined on the TMail server appear as Thunderbird tags
-- **Native integration**: Uses Thunderbird's built-in tag UI (columns, context menus, etc.)
-- **Auto-sync**: Configurable automatic synchronization on startup and at intervals
-- **Multi-account**: Supports multiple IMAP accounts
+- **Label sync (read-only)**: Labels from the Twake Mail server appear as Thunderbird tags
+- **Native integration**: Uses Thunderbird's built-in tag UI (columns, context menus, filters, etc.)
+- **Auto-sync**: Configurable automatic synchronization on startup and at regular intervals
+- **Multi-account**: Supports multiple IMAP accounts simultaneously
 
 > **Note**: Labels are read-only via IMAP METADATA. Creating or deleting labels must be done
-> directly on the server (e.g. via Twake Mail Admin). This extension only reads and displays them.
+> on the server side (e.g. via Twake Mail Admin). This extension only reads and displays them.
 
 ## Requirements
 
 - Thunderbird 128 or later
-- TMail server 1.0.16 or later
+- Twake Mail server with IMAP METADATA support (RFC 5464)
 
 ## Installation
 
@@ -37,7 +37,7 @@ A Thunderbird extension that synchronizes labels from TMail/James server with Th
 
 ## How It Works
 
-TMail/James stores labels as IMAP METADATA entries:
+Twake Mail stores labels as IMAP METADATA entries (RFC 5464):
 
 ```
 /private/vendor/tmail/labels/{labelId}/keyword → UUID (IMAP keyword)
@@ -47,15 +47,15 @@ TMail/James stores labels as IMAP METADATA entries:
 
 This extension:
 1. Fetches labels from the server using IMAP `GETMETADATA` (read-only)
-2. Creates corresponding Thunderbird tags with matching keywords
+2. Creates corresponding Thunderbird tags with matching names and colors
 
-Since the IMAP keyword is shared between TMail and Thunderbird, applying a tag to a message automatically applies the label on the server.
+Since the IMAP keyword is shared between Twake Mail and Thunderbird, applying a tag in Thunderbird automatically applies the corresponding label on the server (and vice versa).
 
-Labels can only be created or deleted on the server side (e.g. via Twake Mail Admin or the WebAdmin API).
+Labels can only be created or deleted on the server side (e.g. via Twake Mail Admin).
 
 ## Testing with Docker
 
-Start a TMail test server:
+Start a Twake Mail test server:
 
 ```bash
 docker run -p 8000:8000 -p 993:993 -d chibenwa/tmail-backend:memory-imap-label
@@ -67,16 +67,7 @@ CONTAINER_ID=$(docker ps -q --filter ancestor=chibenwa/tmail-backend:memory-imap
 docker exec -ti $CONTAINER_ID james-cli addUser alice@localhost 123456
 ```
 
-Provision labels using Twake Mail Admin:
-
-```bash
-cd ~/Documents/twake-mail-admin
-bun run dev
-# Browse http://localhost:3000/users/user/alice%40localhost
-# Create INBOX first, then add labels
-```
-
-Verify labels via IMAP:
+Provision labels using Twake Mail Admin, then verify via IMAP:
 
 ```bash
 openssl s_client -connect 127.0.0.1:993
@@ -87,15 +78,14 @@ a2 logout
 ```
 
 Configure Thunderbird:
-1. Add account: alice@localhost / 123456
-2. IMAP server: 127.0.0.1:993 (SSL)
-3. Install the extension
-4. Click the extension icon → Sync Labels
+1. Add account: alice@localhost / 123456, IMAP server: 127.0.0.1:993 (SSL)
+2. Install the extension
+3. Click the extension icon → Sync Labels
 
 ## Project Structure
 
 ```
-thunderbird-labels/
+thunderbird-tmail-label/
 ├── manifest.json                           # Extension manifest
 ├── experiment-apis/
 │   └── imap-metadata/
@@ -118,26 +108,21 @@ thunderbird-labels/
 
 ## Development
 
-### Building
-
-No build step required - the extension runs directly from source.
-
 ### Debugging
 
 1. Open Thunderbird → Tools → Developer Tools → Error Console
-2. Filter by "TMail Labels" to see extension logs
+2. Filter by "Twake Mail" to see extension logs
 
 ### Creating XPI
 
 ```bash
-cd thunderbird-labels
-zip -r ../thunderbird-labels.xpi . -x "*.git*" -x "*.DS_Store"
+zip -r ../twake-mail-thunderbird.xpi . -x "*.git*" -x "*.DS_Store"
 ```
 
 ## License
 
-MIT
+AGPL v3
 
 ## Contributing
 
-Issues and pull requests welcome at https://github.com/yadd/thunderbird-labels
+Issues and pull requests welcome.

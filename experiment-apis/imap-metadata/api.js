@@ -7,7 +7,7 @@ var { ExtensionCommon } = ChromeUtils.importESModule(
 );
 
 /**
- * TMail Labels IMAP Metadata Experiment API
+ * Twake Mail for Thunderbird - IMAP Metadata Experiment API
  *
  * Provides access to IMAP METADATA extension (RFC 5464) for reading
  * TMail labels stored at /private/vendor/tmail/labels/
@@ -74,7 +74,7 @@ var imapMetadata = class extends ExtensionAPI {
               labels: labels,
             };
           } catch (error) {
-            console.error("TMail Labels: getLabels error", error);
+            console.error("Twake Mail: getLabels error", error);
             return {
               success: false,
               error: error.message || String(error),
@@ -97,7 +97,7 @@ var imapMetadata = class extends ExtensionAPI {
 
             return { supported: true };
           } catch (error) {
-            console.error("TMail Labels: testConnection error", error);
+            console.error("Twake Mail: testConnection error", error);
             return {
               supported: false,
               error: error.message || String(error),
@@ -179,11 +179,11 @@ var imapMetadata = class extends ExtensionAPI {
    */
   async fetchLabelsViaMetadata(server, folder) {
     try {
-      console.log("TMail Labels: Fetching metadata via raw IMAP");
+      console.log("Twake Mail: Fetching metadata via raw IMAP");
       const labels = await this.fetchMetadataViaRawImap(server, folder);
       return labels;
     } catch (err) {
-      console.warn("TMail Labels: Raw IMAP failed, using cached data", err);
+      console.warn("Twake Mail: Raw IMAP failed, using cached data", err);
       // Return cached/stored labels if available
       return this.getCachedLabels(server.key);
     }
@@ -209,7 +209,7 @@ var imapMetadata = class extends ExtensionAPI {
 
     return new Promise((resolve, reject) => {
       try {
-        console.log(`TMail Labels: Connecting to ${host}:${port} (SSL: ${useSSL})`);
+        console.log(`Twake Mail: Connecting to ${host}:${port} (SSL: ${useSSL})`);
 
         const transportService = Cc[
           "@mozilla.org/network/socket-transport-service;1"
@@ -243,7 +243,7 @@ var imapMetadata = class extends ExtensionAPI {
         const sendCommand = (cmd) => {
           commandTag++;
           const fullCmd = `A${commandTag} ${cmd}\r\n`;
-          console.log("TMail Labels: Sending:", fullCmd.trim());
+          console.log("Twake Mail: Sending:", fullCmd.trim());
           outstream.write(fullCmd, fullCmd.length);
         };
 
@@ -258,7 +258,7 @@ var imapMetadata = class extends ExtensionAPI {
 
               for (const line of lines) {
                 if (!line) continue;
-                console.log("TMail Labels: Received:", line);
+                console.log("Twake Mail: Received:", line);
 
                 if (state === "greeting") {
                   if (line.startsWith("* OK")) {
@@ -284,7 +284,7 @@ var imapMetadata = class extends ExtensionAPI {
                     state = "logout";
                     sendCommand("LOGOUT");
                   } else if (line.match(/^A\d+ (NO|BAD)/)) {
-                    console.warn("TMail Labels: GETMETADATA failed:", line);
+                    console.warn("Twake Mail: GETMETADATA failed:", line);
                     state = "logout";
                     sendCommand("LOGOUT");
                   }
@@ -307,7 +307,7 @@ var imapMetadata = class extends ExtensionAPI {
             }
           } catch (e) {
             if (e.name !== "NS_BASE_STREAM_WOULD_BLOCK") {
-              console.error("TMail Labels: Read error", e);
+              console.error("Twake Mail: Read error", e);
               reject(e);
               cleanup();
             } else {
