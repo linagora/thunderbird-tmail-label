@@ -113,24 +113,6 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     case "GET_LABELS":
       return handleGetLabels(message.accountId);
 
-    case "CREATE_LABEL":
-      return handleCreateLabel(
-        message.accountId,
-        message.displayName,
-        message.color
-      );
-
-    case "UPDATE_LABEL":
-      return handleUpdateLabel(
-        message.accountId,
-        message.labelId,
-        message.displayName,
-        message.color
-      );
-
-    case "DELETE_LABEL":
-      return handleDeleteLabel(message.accountId, message.labelId);
-
     case "GET_SETTINGS":
       return handleGetSettings();
 
@@ -188,37 +170,6 @@ async function handleGetLabels(accountId) {
     return { success: true, labels };
   } catch (error) {
     return { success: false, error: error.message, labels: [] };
-  }
-}
-
-async function handleCreateLabel(accountId, displayName, color) {
-  try {
-    const label = await LabelSyncService.createLabel(
-      accountId,
-      displayName,
-      color
-    );
-    return { success: true, label };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-
-async function handleUpdateLabel(accountId, labelId, displayName, color) {
-  try {
-    await LabelSyncService.updateLabel(accountId, labelId, displayName, color);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-}
-
-async function handleDeleteLabel(accountId, labelId) {
-  try {
-    await LabelSyncService.deleteLabel(accountId, labelId);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
   }
 }
 

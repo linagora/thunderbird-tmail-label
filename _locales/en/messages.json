@@ -80,25 +80,5 @@
   "selectAccount": {
     "message": "Select an account",
     "description": "Placeholder when no account selected"
-  },
-  "addLabel": {
-    "message": "Add Label",
-    "description": "Add label button"
-  },
-  "labelName": {
-    "message": "Name",
-    "description": "Label name field"
-  },
-  "labelColor": {
-    "message": "Color",
-    "description": "Label color field"
-  },
-  "cancel": {
-    "message": "Cancel",
-    "description": "Cancel button"
-  },
-  "create": {
-    "message": "Create",
-    "description": "Create button"
   }
 }

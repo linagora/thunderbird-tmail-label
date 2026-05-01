@@ -87,94 +87,23 @@ const LabelSyncService = {
 
   /**
    * Setup listeners for Thunderbird tag changes
+   * Labels are read-only: we only listen to keep the local mapping consistent
+   * when tags are removed externally. No writes are sent to the server.
    */
   _setupTagListeners() {
-    // Listen for tag definition changes
-    if (browser.messages.tags.onCreated) {
-      browser.messages.tags.onCreated.addListener((tag) => {
-        console.log("TMail Labels: TB tag created", tag);
-        // Note: We don't auto-sync new TB tags to TMail
-        // User must explicitly create labels on the server
-      });
-    }
-
-    if (browser.messages.tags.onUpdated) {
-      browser.messages.tags.onUpdated.addListener(
-        async (key, changedProps, oldProps) => {
-          console.log("TMail Labels: TB tag updated", key, changedProps);
-          await this._handleTagUpdate(key, changedProps);
-        }
-      );
-    }
-
     if (browser.messages.tags.onDeleted) {
-      browser.messages.tags.onDeleted.addListener(async (key) => {
-        console.log("TMail Labels: TB tag deleted", key);
-        await this._handleTagDelete(key);
+      browser.messages.tags.onDeleted.addListener((key) => {
+        // Remove the local mapping entry so it gets re-created on next sync
+        for (const [, labels] of this._labelMap) {
+          for (const [labelId, mapping] of labels) {
+            if (mapping.tbTagKey === key) {
+              labels.delete(labelId);
+              this._saveState();
+              return;
+            }
+          }
+        }
       });
-    }
-  },
-
-  /**
-   * Handle Thunderbird tag update - sync to TMail server
-   */
-  async _handleTagUpdate(tagKey, changedProps) {
-    // Skip if we're currently syncing (to avoid feedback loops)
-    if (this._syncing) {
-      console.log("TMail Labels: Skipping tag update during sync");
-      return;
-    }
-
-    // Find which account/label this tag maps to
-    for (const [accountId, labels] of this._labelMap) {
-      for (const [labelId, mapping] of labels) {
-        if (mapping.tbTagKey === tagKey) {
-          // This TB tag corresponds to a TMail label
-          // Use the keyword (UUID) as WebAdmin ID
-          const webAdminId = mapping.tmailLabel.keyword;
-          try {
-            await browser.imapMetadata.updateLabel(
-              accountId,
-              webAdminId,
-              changedProps.tag || null, // displayName
-              changedProps.color || null
-            );
-            console.log("TMail Labels: Synced tag update to server", tagKey);
-          } catch (error) {
-            console.error("TMail Labels: Failed to sync tag update", error);
-          }
-          return;
-        }
-      }
-    }
-  },
-
-  /**
-   * Handle Thunderbird tag deletion - sync to TMail server
-   */
-  async _handleTagDelete(tagKey) {
-    // Skip if we're currently syncing
-    if (this._syncing) {
-      return;
-    }
-
-    // Find which account/label this tag maps to
-    for (const [accountId, labels] of this._labelMap) {
-      for (const [labelId, mapping] of labels) {
-        if (mapping.tbTagKey === tagKey) {
-          // Use the keyword (UUID) as WebAdmin ID
-          const webAdminId = mapping.tmailLabel.keyword;
-          try {
-            await browser.imapMetadata.deleteLabel(accountId, webAdminId);
-            labels.delete(labelId);
-            console.log("TMail Labels: Deleted label from server", webAdminId);
-            await this._saveState();
-          } catch (error) {
-            console.error("TMail Labels: Failed to delete label on server", error);
-          }
-          return;
-        }
-      }
     }
   },
 
@@ -381,80 +310,6 @@ const LabelSyncService = {
       ];
     this._colorIndex++;
     return color;
-  },
-
-  /**
-   * Create a new label on the server and sync to Thunderbird
-   */
-  async createLabel(accountId, displayName, color = null) {
-    const result = await browser.imapMetadata.createLabel(
-      accountId,
-      displayName,
-      color
-    );
-
-    if (result.success && result.label) {
-      // Sync the new label to Thunderbird
-      await this.syncAccount(accountId);
-      return result.label;
-    }
-
-    throw new Error(result.error || "Failed to create label");
-  },
-
-  /**
-   * Update a label on the server and sync to Thunderbird
-   */
-  async updateLabel(accountId, labelId, displayName, color) {
-    const result = await browser.imapMetadata.updateLabel(
-      accountId,
-      labelId,
-      displayName,
-      color
-    );
-
-    if (result.success) {
-      await this.syncAccount(accountId);
-      return true;
-    }
-
-    throw new Error(result.error || "Failed to update label");
-  },
-
-  /**
-   * Delete a label from the server and Thunderbird
-   */
-  async deleteLabel(accountId, labelId) {
-    // Find the mapping to get the WebAdmin ID (keyword/UUID)
-    const accountLabels = this._labelMap.get(accountId);
-    let webAdminId = labelId;
-    let mapping = null;
-
-    if (accountLabels) {
-      mapping = accountLabels.get(labelId);
-      if (mapping && mapping.tmailLabel) {
-        webAdminId = mapping.tmailLabel.keyword;
-      }
-    }
-
-    const result = await browser.imapMetadata.deleteLabel(accountId, webAdminId);
-
-    if (result.success) {
-      // Remove from local mapping
-      if (accountLabels && mapping) {
-        // Delete TB tag
-        try {
-          await browser.messages.tags.delete(mapping.tbTagKey);
-        } catch (e) {
-          console.warn("TMail Labels: Tag already deleted", e);
-        }
-        accountLabels.delete(labelId);
-        await this._saveState();
-      }
-      return true;
-    }
-
-    throw new Error(result.error || "Failed to delete label");
   },
 
   /**

@@ -15,10 +15,6 @@ const elements = {
   accountsList: null,
   labelsList: null,
   syncBtn: null,
-  addLabelBtn: null,
-  addLabelDialog: null,
-  addLabelForm: null,
-  cancelAddBtn: null,
   autoSync: null,
   syncInterval: null,
 };
@@ -33,10 +29,6 @@ async function init() {
   elements.accountsList = document.getElementById("accounts-list");
   elements.labelsList = document.getElementById("labels-list");
   elements.syncBtn = document.getElementById("sync-btn");
-  elements.addLabelBtn = document.getElementById("add-label-btn");
-  elements.addLabelDialog = document.getElementById("add-label-dialog");
-  elements.addLabelForm = document.getElementById("add-label-form");
-  elements.cancelAddBtn = document.getElementById("cancel-add-btn");
   elements.autoSync = document.getElementById("auto-sync");
   elements.syncInterval = document.getElementById("sync-interval");
 
@@ -56,45 +48,7 @@ async function init() {
  * Setup event listeners
  */
 function setupEventListeners() {
-  // Sync button
   elements.syncBtn.addEventListener("click", handleSync);
-
-  // Add label button
-  elements.addLabelBtn.addEventListener("click", () => {
-    elements.addLabelDialog.classList.remove("hidden");
-    document.getElementById("label-name").focus();
-  });
-
-  // Add label form
-  elements.addLabelForm.addEventListener("submit", handleAddLabel);
-
-  // Cancel add button
-  elements.cancelAddBtn.addEventListener("click", () => {
-    elements.addLabelDialog.classList.add("hidden");
-    elements.addLabelForm.reset();
-    resetColorPicker();
-  });
-
-  // Close dialog on backdrop click
-  elements.addLabelDialog.addEventListener("click", (e) => {
-    if (e.target === elements.addLabelDialog) {
-      elements.addLabelDialog.classList.add("hidden");
-      elements.addLabelForm.reset();
-      resetColorPicker();
-    }
-  });
-
-  // Color picker buttons
-  document.querySelectorAll(".color-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      document.querySelectorAll(".color-btn").forEach((b) => b.classList.remove("selected"));
-      btn.classList.add("selected");
-      document.getElementById("label-color").value = btn.dataset.color;
-    });
-  });
-
-  // Settings changes
   elements.autoSync.addEventListener("change", handleSettingsChange);
   elements.syncInterval.addEventListener("change", handleSettingsChange);
 }
@@ -173,7 +127,6 @@ function renderAccounts() {
 async function selectAccount(accountId) {
   currentAccountId = accountId;
   renderAccounts();
-  elements.addLabelBtn.disabled = false;
   await loadLabels(accountId);
 }
 
@@ -215,25 +168,13 @@ function renderLabels() {
   elements.labelsList.innerHTML = labels
     .map(
       (label) => `
-    <div class="list-item" data-label-id="${label.id}">
+    <div class="list-item">
       <div class="label-color" style="background: ${label.color || "#999"}"></div>
       <div class="name">${escapeHtml(label.displayName)}</div>
-      <div class="actions">
-        <button class="action-btn delete" data-action="delete" title="Delete">✕</button>
-      </div>
     </div>
   `
     )
     .join("");
-
-  // Add click handlers for delete
-  elements.labelsList.querySelectorAll(".action-btn.delete").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const labelId = btn.closest(".list-item").dataset.labelId;
-      handleDeleteLabel(labelId);
-    });
-  });
 }
 
 /**
@@ -266,70 +207,6 @@ async function handleSync() {
   } finally {
     elements.syncBtn.disabled = false;
     elements.syncBtn.classList.remove("syncing");
-  }
-}
-
-/**
- * Handle add label form submit
- */
-async function handleAddLabel(e) {
-  e.preventDefault();
-
-  const name = document.getElementById("label-name").value.trim();
-  const color = document.getElementById("label-color").value;
-
-  if (!name) return;
-
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: "CREATE_LABEL",
-      accountId: currentAccountId,
-      displayName: name,
-      color: color,
-    });
-
-    if (response.success) {
-      elements.addLabelDialog.classList.add("hidden");
-      elements.addLabelForm.reset();
-      resetColorPicker();
-      await loadLabels(currentAccountId);
-    } else {
-      console.error("Failed to create label:", response.error);
-    }
-  } catch (error) {
-    console.error("Error creating label:", error.message);
-  }
-}
-
-/**
- * Handle delete label
- */
-async function handleDeleteLabel(labelId) {
-  const label = labels.find((l) => l.id === labelId);
-  if (!label) return;
-
-  // Mark the item as "deleting" visually instead of using confirm()
-  const listItem = document.querySelector(`[data-label-id="${labelId}"]`);
-  if (listItem) {
-    listItem.style.opacity = "0.5";
-  }
-
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: "DELETE_LABEL",
-      accountId: currentAccountId,
-      labelId: labelId,
-    });
-
-    if (response.success) {
-      await loadLabels(currentAccountId);
-    } else {
-      if (listItem) listItem.style.opacity = "1";
-      console.error("Failed to delete label:", response.error);
-    }
-  } catch (error) {
-    if (listItem) listItem.style.opacity = "1";
-    console.error("Error deleting label:", error.message);
   }
 }
 
@@ -400,16 +277,6 @@ async function updateStatus() {
 function setStatus(status, text) {
   elements.syncStatus.className = `status ${status}`;
   elements.statusText.textContent = text;
-}
-
-/**
- * Reset color picker to default
- */
-function resetColorPicker() {
-  document.querySelectorAll(".color-btn").forEach((b, i) => {
-    b.classList.toggle("selected", i === 0);
-  });
-  document.getElementById("label-color").value = "#FF0000";
 }
 
 /**
