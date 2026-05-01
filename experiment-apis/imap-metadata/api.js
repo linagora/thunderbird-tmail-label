@@ -194,17 +194,23 @@ var imapMetadata = class extends ExtensionAPI {
    * This sends the actual GETMETADATA command to the server
    */
   async fetchMetadataViaRawImap(server, folder) {
+    const host = server.hostName;
+    const port = server.port || 993;
+    const useSSL = server.socketType === Ci.nsMsgSocketType.SSL;
+    const username = server.username;
+
+    // Resolve password before opening the socket.
+    // server.password returns the in-memory cached password (set when Thunderbird
+    // authenticated with the IMAP server). Falls back to nsILoginManager.
+    const password = await this._getImapPassword(server);
+    if (!password) {
+      throw new Error("Could not find IMAP password for account");
+    }
+
     return new Promise((resolve, reject) => {
       try {
-        // Get server connection parameters
-        const host = server.hostName;
-        const port = server.port || 993;
-        const useSSL = server.socketType === Ci.nsMsgSocketType.SSL;
-        const username = server.username;
-
         console.log(`TMail Labels: Connecting to ${host}:${port} (SSL: ${useSSL})`);
 
-        // Create socket transport
         const transportService = Cc[
           "@mozilla.org/network/socket-transport-service;1"
         ].getService(Ci.nsISocketTransportService);
@@ -218,21 +224,17 @@ var imapMetadata = class extends ExtensionAPI {
           null
         );
 
-        // Set timeout
         transport.setTimeout(Ci.nsISocketTransport.TIMEOUT_CONNECT, 30);
         transport.setTimeout(Ci.nsISocketTransport.TIMEOUT_READ_WRITE, 60);
 
-        // Open streams
         const outstream = transport.openOutputStream(0, 0, 0);
         const instream = transport.openInputStream(0, 0, 0);
 
-        // Create script input stream for reading
         const scriptStream = Cc[
           "@mozilla.org/scriptableinputstream;1"
         ].createInstance(Ci.nsIScriptableInputStream);
         scriptStream.init(instream);
 
-        // IMAP command sequence
         let commandTag = 0;
         let state = "greeting";
         let responseBuffer = "";
@@ -245,74 +247,29 @@ var imapMetadata = class extends ExtensionAPI {
           outstream.write(fullCmd, fullCmd.length);
         };
 
-        // Password lookup using login manager
-        const getPassword = () => {
-          const loginManager = Cc[
-            "@mozilla.org/login-manager;1"
-          ].getService(Ci.nsILoginManager);
-
-          const logins = loginManager.findLogins(
-            `imap://${host}`,
-            null,
-            `imap://${host}`
-          );
-
-          for (const login of logins) {
-            if (login.username === username) {
-              return login.password;
-            }
-          }
-
-          // Try alternate URI formats
-          const altLogins = loginManager.findLogins(
-            `imap://${host}:${port}`,
-            null,
-            ""
-          );
-
-          for (const login of altLogins) {
-            if (login.username === username) {
-              return login.password;
-            }
-          }
-
-          return null;
-        };
-
-        // Process IMAP responses
         const processResponse = () => {
           try {
             const available = scriptStream.available();
             if (available > 0) {
               responseBuffer += scriptStream.read(available);
 
-              // Check for complete responses (ending with \r\n)
               const lines = responseBuffer.split("\r\n");
-              responseBuffer = lines.pop() || ""; // Keep incomplete line
+              responseBuffer = lines.pop() || "";
 
               for (const line of lines) {
                 if (!line) continue;
                 console.log("TMail Labels: Received:", line);
 
-                // Parse response based on state
                 if (state === "greeting") {
                   if (line.startsWith("* OK")) {
                     state = "login";
-                    const password = getPassword();
-                    if (password) {
-                      sendCommand(`LOGIN ${username} ${password}`);
-                    } else {
-                      reject(new Error("Could not find password for account"));
-                      cleanup();
-                      return;
-                    }
+                    sendCommand(`LOGIN ${username} ${password}`);
                   }
                 } else if (state === "login") {
                   if (line.match(/^A\d+ OK/)) {
                     state = "getmetadata";
-                    const folderName = folder.name || "INBOX";
                     sendCommand(
-                      `GETMETADATA "${folderName}" (DEPTH infinity) /private/vendor/tmail/labels`
+                      `GETMETADATA "INBOX" (DEPTH infinity) /private/vendor/tmail/labels`
                     );
                   } else if (line.match(/^A\d+ (NO|BAD)/)) {
                     reject(new Error("Login failed: " + line));
@@ -320,8 +277,6 @@ var imapMetadata = class extends ExtensionAPI {
                     return;
                   }
                 } else if (state === "getmetadata") {
-                  // Parse METADATA response
-                  // Format: * METADATA "INBOX" (/private/vendor/tmail/labels/ID/key "value" ...)
                   if (line.startsWith("* METADATA")) {
                     const parsed = this.parseMetadataResponse(line);
                     labels.push(...parsed);
@@ -329,14 +284,12 @@ var imapMetadata = class extends ExtensionAPI {
                     state = "logout";
                     sendCommand("LOGOUT");
                   } else if (line.match(/^A\d+ (NO|BAD)/)) {
-                    // METADATA not supported or error
                     console.warn("TMail Labels: GETMETADATA failed:", line);
                     state = "logout";
                     sendCommand("LOGOUT");
                   }
                 } else if (state === "logout") {
                   if (line.match(/^A\d+ OK/) || line.startsWith("* BYE")) {
-                    // Cache the labels
                     this.setCachedLabels(server.key, labels);
                     resolve(labels);
                     cleanup();
@@ -346,7 +299,6 @@ var imapMetadata = class extends ExtensionAPI {
               }
             }
 
-            // Continue reading if not done
             if (state !== "done") {
               Services.tm.currentThread.dispatch(
                 { run: processResponse },
@@ -359,7 +311,6 @@ var imapMetadata = class extends ExtensionAPI {
               reject(e);
               cleanup();
             } else {
-              // No data available yet, try again
               Services.tm.currentThread.dispatch(
                 { run: processResponse },
                 Ci.nsIThread.DISPATCH_NORMAL
@@ -379,7 +330,6 @@ var imapMetadata = class extends ExtensionAPI {
           }
         };
 
-        // Start processing
         Services.tm.currentThread.dispatch(
           { run: processResponse },
           Ci.nsIThread.DISPATCH_NORMAL
@@ -388,6 +338,54 @@ var imapMetadata = class extends ExtensionAPI {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Retrieve the IMAP password for a given server.
+   *
+   * Primary: server.password — Thunderbird caches this after the first
+   * successful IMAP login in the session (no UI prompt, no keyring access).
+   *
+   * Fallback: nsILoginManager.findLogins() — works whether the API is
+   * synchronous (older TB) or returns a Promise (TB 128+).
+   */
+  async _getImapPassword(server) {
+    // Primary: in-memory cache on the server object
+    try {
+      const cached = server.password;
+      if (cached) return cached;
+    } catch (e) {
+      // not exposed in this context, fall through
+    }
+
+    // Fallback: login manager
+    const host = server.hostName;
+    const port = server.port || 993;
+    const username = server.username;
+    const loginManager = Cc[
+      "@mozilla.org/login-manager;1"
+    ].getService(Ci.nsILoginManager);
+
+    const candidates = [
+      [`imap://${host}`, `imap://${host}`],
+      [`imap://${host}:${port}`, `imap://${host}:${port}`],
+      [`imap://${host}:${port}`, ""],
+      [`imap://${host}`, ""],
+    ];
+
+    for (const [origin, realm] of candidates) {
+      try {
+        const logins = await loginManager.findLogins(origin, null, realm);
+        if (logins && logins.length) {
+          for (const login of logins) {
+            if (login.username === username) return login.password;
+          }
+        }
+      } catch (e) {
+        // try next candidate
+      }
+    }
+    return null;
   }
 
   /**
