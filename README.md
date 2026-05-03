@@ -5,12 +5,14 @@ A Thunderbird extension that brings Twake Mail features to Thunderbird. The firs
 ## Features
 
 - **Label sync (read-only)**: Labels from the Twake Mail server appear as Thunderbird tags
-- **Native integration**: Uses Thunderbird's built-in tag UI (columns, context menus, filters, etc.)
+- **Identity sync (read-only)**: Custom identities (display name, email, HTML signature, reply-to, BCC) are pulled from the server and applied to Thunderbird identities
+- **Native integration**: Uses Thunderbird's built-in tag and identity UIs
 - **Auto-sync**: Configurable automatic synchronization on startup and at regular intervals
 - **Multi-account**: Supports multiple IMAP accounts simultaneously
 
-> **Note**: Labels are read-only via IMAP METADATA. Creating or deleting labels must be done
-> on the server side (e.g. via Twake Mail Admin). This extension only reads and displays them.
+> **Note**: Labels and identities are read-only via IMAP METADATA. Creating or deleting them
+> must be done on the server side (e.g. via Twake Mail Admin). This extension only reads and
+> applies them to Thunderbird.
 
 ## Requirements
 
@@ -37,7 +39,9 @@ A Thunderbird extension that brings Twake Mail features to Thunderbird. The firs
 
 ## How It Works
 
-Twake Mail stores labels as IMAP METADATA entries (RFC 5464):
+Both features use IMAP METADATA (RFC 5464) with a `GETMETADATA "INBOX" (DEPTH infinity)` command.
+
+### Labels
 
 ```
 /private/vendor/tmail/labels/{labelId}/keyword → UUID (IMAP keyword)
@@ -45,13 +49,23 @@ Twake Mail stores labels as IMAP METADATA entries (RFC 5464):
 /private/vendor/tmail/labels/{labelId}/color → (optional) Color hex code
 ```
 
-This extension:
-1. Fetches labels from the server using IMAP `GETMETADATA` (read-only)
-2. Creates corresponding Thunderbird tags with matching names and colors
+The extension creates Thunderbird tags whose key matches the Twake Mail keyword UUID. Since the IMAP keyword is shared between the two clients, tagging a message in either app is reflected in the other.
 
-Since the IMAP keyword is shared between Twake Mail and Thunderbird, applying a tag in Thunderbird automatically applies the corresponding label on the server (and vice versa).
+### Identities
 
-Labels can only be created or deleted on the server side (e.g. via Twake Mail Admin).
+```
+/private/vendor/tmail/identities/{hash}/id → Identity UUID
+/private/vendor/tmail/identities/{hash}/displayname → Display name
+/private/vendor/tmail/identities/{hash}/email → Email address
+/private/vendor/tmail/identities/{hash}/html → HTML signature
+/private/vendor/tmail/identities/{hash}/text → Plain-text signature
+/private/vendor/tmail/identities/{hash}/replyto → (optional) Reply-to address
+/private/vendor/tmail/identities/{hash}/bcc → (optional) BCC address
+```
+
+Only custom identities (`maydelete: true`) are synced. The extension matches server identities to Thunderbird identities by UUID (stored mapping) or email (first-sync fallback), then updates name, signature, reply-to, and BCC.
+
+Labels and identities can only be created or deleted on the server side (e.g. via Twake Mail Admin).
 
 ## Testing with Docker
 

@@ -6,6 +6,7 @@
 let currentAccountId = null;
 let accounts = [];
 let labels = [];
+let identities = [];
 let settings = {};
 
 // Elements
@@ -14,6 +15,7 @@ const elements = {
   statusText: null,
   accountsList: null,
   labelsList: null,
+  identitiesList: null,
   syncBtn: null,
   autoSync: null,
   syncInterval: null,
@@ -28,6 +30,7 @@ async function init() {
   elements.statusText = document.getElementById("status-text");
   elements.accountsList = document.getElementById("accounts-list");
   elements.labelsList = document.getElementById("labels-list");
+  elements.identitiesList = document.getElementById("identities-list");
   elements.syncBtn = document.getElementById("sync-btn");
   elements.autoSync = document.getElementById("auto-sync");
   elements.syncInterval = document.getElementById("sync-interval");
@@ -127,7 +130,7 @@ function renderAccounts() {
 async function selectAccount(accountId) {
   currentAccountId = accountId;
   renderAccounts();
-  await loadLabels(accountId);
+  await Promise.all([loadLabels(accountId), loadIdentities(accountId)]);
 }
 
 /**
@@ -178,6 +181,56 @@ function renderLabels() {
 }
 
 /**
+ * Load identities for an account
+ */
+async function loadIdentities(accountId) {
+  elements.identitiesList.innerHTML =
+    '<div class="loading">Loading identities...</div>';
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: "GET_IDENTITIES",
+      accountId,
+    });
+
+    if (response.success) {
+      identities = response.identities;
+      renderIdentities();
+    } else {
+      elements.identitiesList.innerHTML = `<div class="placeholder">${response.error || "Failed to load identities"}</div>`;
+    }
+  } catch (error) {
+    console.error("Failed to load identities", error);
+    elements.identitiesList.innerHTML =
+      '<div class="placeholder">Error loading identities</div>';
+  }
+}
+
+/**
+ * Render identities list
+ */
+function renderIdentities() {
+  if (identities.length === 0) {
+    elements.identitiesList.innerHTML = `<div class="placeholder">${browser.i18n.getMessage("noIdentities") || "No custom identities on server"}</div>`;
+    return;
+  }
+
+  elements.identitiesList.innerHTML = identities
+    .map(
+      (identity) => `
+    <div class="list-item identity-item">
+      <div class="identity-info">
+        <div class="name">${escapeHtml(identity.displayName)}</div>
+        <div class="meta">${escapeHtml(identity.email)}</div>
+      </div>
+      ${identity.replyTo ? `<div class="identity-replyto">${escapeHtml(identity.replyTo)}</div>` : ""}
+    </div>
+  `
+    )
+    .join("");
+}
+
+/**
  * Handle sync button click
  */
 async function handleSync() {
@@ -191,9 +244,12 @@ async function handleSync() {
     if (response.success) {
       setStatus("success", browser.i18n.getMessage("syncSuccess") || "Sync complete");
 
-      // Reload labels for current account
+      // Reload labels and identities for current account
       if (currentAccountId) {
-        await loadLabels(currentAccountId);
+        await Promise.all([
+          loadLabels(currentAccountId),
+          loadIdentities(currentAccountId),
+        ]);
       }
     } else {
       setStatus(

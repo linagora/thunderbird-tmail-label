@@ -17,6 +17,7 @@
     "messagesTags",
     "messagesTagsList",
     "accountsRead",
+    "accountsIdentities",
     "storage"
   ],
   "experiment_apis": {
@@ -33,6 +34,7 @@
     "scripts": [
       "src/core/constants.js",
       "src/core/label-sync.js",
+      "src/core/identity-sync.js",
       "src/background.js"
     ]
   },

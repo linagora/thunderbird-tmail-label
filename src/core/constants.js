@@ -10,6 +10,7 @@ const TWAKE_MAIL = {
   STORAGE_KEYS: {
     LAST_SYNC: "lastSyncTime",
     LABEL_MAP: "labelMap",
+    IDENTITY_MAP: "identityMap",
     SETTINGS: "settings",
   },
 

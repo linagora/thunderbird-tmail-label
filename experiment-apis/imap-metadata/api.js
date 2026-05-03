@@ -65,20 +65,28 @@ var imapMetadata = class extends ExtensionAPI {
               accountId,
               folderPath
             );
-
-            // Send GETMETADATA command and parse response
             const labels = await self.fetchLabelsViaMetadata(server, folder);
-
-            return {
-              success: true,
-              labels: labels,
-            };
+            return { success: true, labels };
           } catch (error) {
             console.error("Twake Mail: getLabels error", error);
-            return {
-              success: false,
-              error: error.message || String(error),
-            };
+            return { success: false, error: error.message || String(error) };
+          }
+        },
+
+        /**
+         * Fetch Twake Mail identities from IMAP METADATA
+         */
+        async getIdentities(accountId) {
+          try {
+            const { server, folder } = self.getServerAndFolder(
+              accountId,
+              "INBOX"
+            );
+            const identities = await self.fetchIdentitiesViaMetadata(server, folder);
+            return { success: true, identities };
+          } catch (error) {
+            console.error("Twake Mail: getIdentities error", error);
+            return { success: false, error: error.message || String(error) };
           }
         },
 
@@ -172,28 +180,39 @@ var imapMetadata = class extends ExtensionAPI {
     return { server, folder };
   }
 
-  /**
-   * Fetch labels via IMAP METADATA command
-   *
-   * Uses raw IMAP socket since Thunderbird doesn't natively expose METADATA
-   */
   async fetchLabelsViaMetadata(server, folder) {
     try {
-      console.log("Twake Mail: Fetching metadata via raw IMAP");
-      const labels = await this.fetchMetadataViaRawImap(server, folder);
-      return labels;
+      console.log("Twake Mail: Fetching labels via raw IMAP");
+      return await this.fetchMetadataViaRawImap(
+        server, folder,
+        "/private/vendor/tmail/labels",
+        (line) => this.parseLabelsResponse(line)
+      );
     } catch (err) {
       console.warn("Twake Mail: Raw IMAP failed, using cached data", err);
-      // Return cached/stored labels if available
-      return this.getCachedLabels(server.key);
+      return this._getCache(server.key, "labels");
+    }
+  }
+
+  async fetchIdentitiesViaMetadata(server, folder) {
+    try {
+      console.log("Twake Mail: Fetching identities via raw IMAP");
+      return await this.fetchMetadataViaRawImap(
+        server, folder,
+        "/private/vendor/tmail/identities",
+        (line) => this.parseIdentitiesResponse(line)
+      );
+    } catch (err) {
+      console.warn("Twake Mail: Raw IMAP failed, using cached data", err);
+      return this._getCache(server.key, "identities");
     }
   }
 
   /**
-   * Fetch metadata via raw IMAP socket connection
-   * This sends the actual GETMETADATA command to the server
+   * Fetch metadata via raw IMAP socket — sends GETMETADATA and parses lines
+   * with the provided parseFn.
    */
-  async fetchMetadataViaRawImap(server, folder) {
+  async fetchMetadataViaRawImap(server, folder, metadataPath, parseFn) {
     const host = server.hostName;
     const port = server.port || 993;
     const useSSL = server.socketType === Ci.nsMsgSocketType.SSL;
@@ -238,7 +257,7 @@ var imapMetadata = class extends ExtensionAPI {
         let commandTag = 0;
         let state = "greeting";
         let responseBuffer = "";
-        const labels = [];
+        const items = [];
 
         const sendCommand = (cmd) => {
           commandTag++;
@@ -269,7 +288,7 @@ var imapMetadata = class extends ExtensionAPI {
                   if (line.match(/^A\d+ OK/)) {
                     state = "getmetadata";
                     sendCommand(
-                      `GETMETADATA "INBOX" (DEPTH infinity) /private/vendor/tmail/labels`
+                      `GETMETADATA "INBOX" (DEPTH infinity) ${metadataPath}`
                     );
                   } else if (line.match(/^A\d+ (NO|BAD)/)) {
                     reject(new Error("Login failed: " + line));
@@ -278,8 +297,8 @@ var imapMetadata = class extends ExtensionAPI {
                   }
                 } else if (state === "getmetadata") {
                   if (line.startsWith("* METADATA")) {
-                    const parsed = this.parseMetadataResponse(line);
-                    labels.push(...parsed);
+                    const parsed = parseFn(line);
+                    items.push(...parsed);
                   } else if (line.match(/^A\d+ OK/)) {
                     state = "logout";
                     sendCommand("LOGOUT");
@@ -290,8 +309,8 @@ var imapMetadata = class extends ExtensionAPI {
                   }
                 } else if (state === "logout") {
                   if (line.match(/^A\d+ OK/) || line.startsWith("* BYE")) {
-                    this.setCachedLabels(server.key, labels);
-                    resolve(labels);
+                    this._setCache(server.key, metadataPath, items);
+                    resolve(items);
                     cleanup();
                     return;
                   }
@@ -388,67 +407,60 @@ var imapMetadata = class extends ExtensionAPI {
     return null;
   }
 
-  /**
-   * Parse IMAP METADATA response line
-   * Format: * METADATA "INBOX" (/private/vendor/tmail/labels/ID/keyword "value" ...)
-   */
-  parseMetadataResponse(line) {
-    const labels = new Map(); // labelId -> {keyword, displayName, color}
-
-    // Extract the metadata entries part
+  parseLabelsResponse(line) {
+    const labels = new Map();
     const match = line.match(/\* METADATA "[^"]*" \((.+)\)/);
     if (!match) return [];
-
     const entriesStr = match[1];
-
-    // Parse key-value pairs
-    // Format: /path/to/key "value" /path/to/key2 "value2"
     const regex = /\/private\/vendor\/tmail\/labels\/([^/]+)\/(\w+)\s+"([^"]*)"/g;
     let m;
-
     while ((m = regex.exec(entriesStr)) !== null) {
       const labelId = m[1];
       const property = m[2];
       const value = m[3];
-
-      if (!labels.has(labelId)) {
-        labels.set(labelId, { id: labelId });
-      }
-
+      if (!labels.has(labelId)) labels.set(labelId, { id: labelId });
       const label = labels.get(labelId);
-      if (property === "keyword") {
-        label.keyword = value;
-      } else if (property === "displayname") {
-        label.displayName = value;
-      } else if (property === "color") {
-        label.color = value;
-      }
+      if (property === "keyword") label.keyword = value;
+      else if (property === "displayname") label.displayName = value;
+      else if (property === "color") label.color = value;
     }
-
-    // Convert to array and filter out incomplete labels
-    return Array.from(labels.values()).filter(
-      (l) => l.keyword && l.displayName
-    );
+    return Array.from(labels.values()).filter((l) => l.keyword && l.displayName);
   }
 
-  /**
-   * Get cached labels for a server
-   */
-  getCachedLabels(serverKey) {
-    if (!imapMetadata._labelCache) {
-      imapMetadata._labelCache = new Map();
+  parseIdentitiesResponse(line) {
+    const identities = new Map();
+    const match = line.match(/\* METADATA "[^"]*" \((.+)\)/);
+    if (!match) return [];
+    const entriesStr = match[1];
+    const regex = /\/private\/vendor\/tmail\/identities\/([^/]+)\/(\w+)\s+"([^"]*)"/g;
+    let m;
+    while ((m = regex.exec(entriesStr)) !== null) {
+      const hash = m[1];
+      const property = m[2];
+      const value = m[3];
+      if (!identities.has(hash)) identities.set(hash, { hash });
+      const identity = identities.get(hash);
+      if (property === "id") identity.id = value;
+      else if (property === "displayname") identity.displayName = value;
+      else if (property === "sortorder") identity.sortOrder = parseInt(value, 10) || 0;
+      else if (property === "email") identity.email = value;
+      else if (property === "html") identity.htmlSignature = value;
+      else if (property === "text") identity.textSignature = value;
+      else if (property === "maydelete") identity.mayDelete = value === "true";
+      else if (property === "replyto") identity.replyTo = value;
+      else if (property === "bcc") identity.bcc = value;
     }
-    return imapMetadata._labelCache.get(serverKey) || [];
+    return Array.from(identities.values()).filter((i) => i.id && i.email);
   }
 
-  /**
-   * Set cached labels for a server
-   */
-  setCachedLabels(serverKey, labels) {
-    if (!imapMetadata._labelCache) {
-      imapMetadata._labelCache = new Map();
-    }
-    imapMetadata._labelCache.set(serverKey, labels);
+  _getCache(serverKey, path) {
+    if (!imapMetadata._cache) imapMetadata._cache = new Map();
+    return imapMetadata._cache.get(`${serverKey}:${path}`) || [];
+  }
+
+  _setCache(serverKey, path, items) {
+    if (!imapMetadata._cache) imapMetadata._cache = new Map();
+    imapMetadata._cache.set(`${serverKey}:${path}`, items);
   }
 
 };

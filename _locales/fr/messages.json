@@ -15,8 +15,16 @@
     "message": "Labels",
     "description": "Titre de la section Labels"
   },
+  "identitiesFeatureTitle": {
+    "message": "Identités",
+    "description": "Titre de la section Identités"
+  },
+  "noIdentities": {
+    "message": "Aucune identité custom sur le serveur",
+    "description": "Quand aucune identité custom n'existe"
+  },
   "syncNow": {
-    "message": "Synchroniser maintenant",
+    "message": "Synchroniser",
     "description": "Bouton de synchronisation manuelle"
   },
   "lastSync": {

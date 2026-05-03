@@ -70,6 +70,23 @@
             "description": "Username for this account"
           }
         }
+      },
+      {
+        "id": "TwakeIdentity",
+        "type": "object",
+        "description": "A Twake Mail identity from IMAP METADATA",
+        "properties": {
+          "id": { "type": "string", "description": "Identity UUID" },
+          "hash": { "type": "string", "description": "Murmur3 hash of the UUID (METADATA path key)" },
+          "displayName": { "type": "string" },
+          "email": { "type": "string" },
+          "sortOrder": { "type": "integer", "optional": true },
+          "htmlSignature": { "type": "string", "optional": true },
+          "textSignature": { "type": "string", "optional": true },
+          "mayDelete": { "type": "boolean" },
+          "replyTo": { "type": "string", "optional": true },
+          "bcc": { "type": "string", "optional": true }
+        }
       }
     ],
     "functions": [
@@ -116,6 +133,37 @@
                 "type": "array",
                 "items": {
                   "$ref": "ImapAccount"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "getIdentities",
+        "type": "function",
+        "description": "Fetch Twake Mail identities from IMAP METADATA for a specific account",
+        "async": "callback",
+        "parameters": [
+          {
+            "name": "accountId",
+            "type": "string",
+            "description": "The account ID to fetch identities from"
+          },
+          {
+            "name": "callback",
+            "type": "function",
+            "parameters": [
+              {
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "identities": {
+                    "type": "array",
+                    "items": { "$ref": "TwakeIdentity" },
+                    "optional": true
+                  },
+                  "error": { "type": "string", "optional": true }
                 }
               }
             ]
