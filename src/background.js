@@ -16,8 +16,9 @@ let syncIntervalId = null;
 async function init() {
   console.log("Twake Mail: Extension starting");
 
-  // Initialize the sync service
+  // Initialize the sync services
   await LabelSyncService.init();
+  await IdentitySyncService.init();
 
   // Load settings
   const settings = await loadSettings();
@@ -27,6 +28,7 @@ async function init() {
     console.log("Twake Mail: Running auto-sync on startup");
     try {
       await LabelSyncService.syncAll();
+      await IdentitySyncService.syncAll();
     } catch (error) {
       console.error("Twake Mail: Auto-sync failed", error);
     }
@@ -83,6 +85,7 @@ function setupPeriodicSync(intervalMinutes) {
     console.log("Twake Mail: Running periodic sync");
     try {
       await LabelSyncService.syncAll();
+      await IdentitySyncService.syncAll();
     } catch (error) {
       console.error("Twake Mail: Periodic sync failed", error);
     }
@@ -113,6 +116,9 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     case "GET_LABELS":
       return handleGetLabels(message.accountId);
 
+    case "GET_IDENTITIES":
+      return handleGetIdentities(message.accountId);
+
     case "GET_SETTINGS":
       return handleGetSettings();
 
@@ -135,6 +141,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
 async function handleSyncAll() {
   try {
     await LabelSyncService.syncAll();
+    await IdentitySyncService.syncAll();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -170,6 +177,15 @@ async function handleGetLabels(accountId) {
     return { success: true, labels };
   } catch (error) {
     return { success: false, error: error.message, labels: [] };
+  }
+}
+
+async function handleGetIdentities(accountId) {
+  try {
+    const identities = IdentitySyncService.getIdentities(accountId);
+    return { success: true, identities };
+  } catch (error) {
+    return { success: false, error: error.message, identities: [] };
   }
 }
 

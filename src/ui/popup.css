@@ -143,6 +143,31 @@ section {
   flex-shrink: 0;
 }
 
+/* Identity items */
+.identity-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  cursor: default;
+}
+
+.identity-item:hover {
+  background: white;
+}
+
+.identity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.identity-replyto {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+}
+
 /* Loading & placeholder */
 .loading, .placeholder {
   padding: 20px;

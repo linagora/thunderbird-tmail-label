@@ -15,9 +15,17 @@
     "message": "Labels",
     "description": "Labels feature section title"
   },
+  "identitiesFeatureTitle": {
+    "message": "Identities",
+    "description": "Identities feature section title"
+  },
+  "noIdentities": {
+    "message": "No custom identities on server",
+    "description": "When no custom identities exist"
+  },
   "syncNow": {
-    "message": "Sync Labels Now",
-    "description": "Button to manually sync labels"
+    "message": "Sync Now",
+    "description": "Button to manually sync"
   },
   "lastSync": {
     "message": "Last sync: $TIME$",
