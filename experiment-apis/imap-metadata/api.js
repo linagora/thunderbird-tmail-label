@@ -412,12 +412,12 @@ var imapMetadata = class extends ExtensionAPI {
     const match = line.match(/\* METADATA "[^"]*" \((.+)\)/);
     if (!match) return [];
     const entriesStr = match[1];
-    const regex = /\/private\/vendor\/tmail\/labels\/([^/]+)\/(\w+)\s+"([^"]*)"/g;
+    const regex = /\/private\/vendor\/tmail\/labels\/([^/]+)\/(\w+)\s+"((?:[^"\\]|\\.)*)"/g;
     let m;
     while ((m = regex.exec(entriesStr)) !== null) {
       const labelId = m[1];
       const property = m[2];
-      const value = m[3];
+      const value = m[3].replace(/\\(.)/g, "$1");
       if (!labels.has(labelId)) labels.set(labelId, { id: labelId });
       const label = labels.get(labelId);
       if (property === "keyword") label.keyword = value;
@@ -432,12 +432,12 @@ var imapMetadata = class extends ExtensionAPI {
     const match = line.match(/\* METADATA "[^"]*" \((.+)\)/);
     if (!match) return [];
     const entriesStr = match[1];
-    const regex = /\/private\/vendor\/tmail\/identities\/([^/]+)\/(\w+)\s+"([^"]*)"/g;
+    const regex = /\/private\/vendor\/tmail\/identities\/([^/]+)\/(\w+)\s+"((?:[^"\\]|\\.)*)"/g;
     let m;
     while ((m = regex.exec(entriesStr)) !== null) {
       const hash = m[1];
       const property = m[2];
-      const value = m[3];
+      const value = m[3].replace(/\\(.)/g, "$1");
       if (!identities.has(hash)) identities.set(hash, { hash });
       const identity = identities.get(hash);
       if (property === "id") identity.id = value;
