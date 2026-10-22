@@ -16,6 +16,12 @@ let syncIntervalId = null;
 async function init() {
   console.log("Twake Mail: Extension starting");
 
+  try {
+    await browser.calendarAttachments.start();
+  } catch (error) {
+    console.error("Twake Mail: Calendar attachments failed to initialize", error);
+  }
+
   // Initialize the sync services
   await LabelSyncService.init();
   await IdentitySyncService.init();

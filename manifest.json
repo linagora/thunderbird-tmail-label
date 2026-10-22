@@ -21,6 +21,14 @@
     "storage"
   ],
   "experiment_apis": {
+    "calendarAttachments": {
+      "schema": "experiment-apis/calendar-attachments/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["calendarAttachments"]],
+        "script": "experiment-apis/calendar-attachments/api.js"
+      }
+    },
     "imapMetadata": {
       "schema": "experiment-apis/imap-metadata/schema.json",
       "parent": {
