@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Linagora//Twake-Calendar//EN
+BEGIN:VEVENT
+UID:uri-support-folded-drive
+DTSTAMP:20261022T092605Z
+DTSTART:20261022T100000Z
+DTEND:20261022T110000Z
+SUMMARY:URI SUPPORT - Folded Drive attachment
+DESCRIPTION:Attachment: Twake-Sync-Setup-Guide-EN.docx
+ATTACH;FMTTYPE=application/vnd.openxmlformats-officedocument.wordprocessing
+ ml.document;X-FILENAME=Twake-Sync-Setup-Guide-EN.docx:http://127.0.0.1:18766
+ /sharing/report.html?sharecode=DEMO#/
+END:VEVENT
+END:VCALENDAR

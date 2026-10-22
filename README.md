@@ -9,7 +9,7 @@ A Thunderbird extension that brings Twake Mail features to Thunderbird. The firs
 - **Native integration**: Uses Thunderbird's built-in tag and identity UIs
 - **Auto-sync**: Configurable automatic synchronization on startup and at regular intervals
 - **Multi-account**: Supports multiple IMAP accounts simultaneously
-- **Calendar attachments (prototype)**: Attach local files to events and download embedded attachments
+- **Calendar attachments (prototype)**: Attach local files, download embedded attachments and open Drive attachment links
 
 > **Note**: Labels and identities are read-only via IMAP METADATA. Creating or deleting them
 > must be done on the server side (e.g. via Twake Mail Admin). This extension only reads and
@@ -126,10 +126,11 @@ thunderbird-tmail-label/
 ### Calendar attachments (prototype)
 
 1. Open an event's **Attachments** tab and click **Attach file...**, or choose **Attach > File from computer...**
-2. Save the event, then click an attachment's filename to download it
+2. Save the event, then click an attachment's filename to download an embedded file or open a Drive link in your browser
 3. Use **Remove** in the editor to remove an attachment
 
 Files are stored in the ICS as `ATTACH;ENCODING=BASE64;VALUE=BINARY` and decoded locally when downloaded.
+HTTP/HTTPS attachments, including Drive sharing links with `X-FILENAME`, appear in the same list and keep their original URI.
 
 - **Server**: Set `CALDAV_BINARY_ATTACHMENT_MODE=allow` for esn-sabre; the default `filter` removes inline attachments
 - **Limits**: 5 MiB per file, 10 MiB per event; empty files are rejected. Server and proxy request limits must account for BASE64 overhead (about 33%)
