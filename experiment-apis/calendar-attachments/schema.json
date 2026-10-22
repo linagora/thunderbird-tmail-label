@@ -1,0 +1,14 @@
+[
+  {
+    "namespace": "calendarAttachments",
+    "description": "Add and save inline BASE64 calendar attachments without changing their stored representation.",
+    "functions": [
+      {
+        "name": "start",
+        "type": "function",
+        "async": true,
+        "parameters": []
+      }
+    ]
+  }
+]
