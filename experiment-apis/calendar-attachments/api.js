@@ -3,6 +3,7 @@
 
 var { ExtensionSupport } = ChromeUtils.importESModule("resource:///modules/ExtensionSupport.sys.mjs");
 var { CalAttachment } = ChromeUtils.importESModule("resource:///modules/CalAttachment.sys.mjs");
+var { openLinkExternally } = ChromeUtils.importESModule("resource:///modules/LinkHelper.sys.mjs");
 var btoa = value => Services.appShell.hiddenDOMWindow.btoa(value);
 var atob = value => Services.appShell.hiddenDOMWindow.atob(value);
 
@@ -13,6 +14,19 @@ var CalendarAttachmentData = {
   isBinary(attachment) {
     return attachment.getParameter("VALUE")?.toUpperCase() === "BINARY" ||
       attachment.encoding?.toUpperCase() === "BASE64";
+  },
+
+  isWebLink(attachment) {
+    return !this.isBinary(attachment) &&
+      ["http", "https"].includes(attachment.uri?.scheme?.toLowerCase());
+  },
+
+  displayName(attachment) {
+    if (this.isBinary(attachment)) {
+      return this.fileName(attachment);
+    }
+    return attachment.getParameter("X-FILENAME")?.trim() ||
+      attachment.getParameter("FILENAME")?.trim() || attachment.uri.spec;
   },
 
   fileName(attachment) {
@@ -113,7 +127,7 @@ var calendarAttachments = class extends ExtensionAPI {
     if ((!editor && !summary) || this.documents.has(doc)) {
       return;
     }
-    const state = { doc, editor, root: null, timer: null, observer: null };
+    const state = { doc, editor, root: null, timer: null, observer: null, hiddenNative: new Map() };
     this.documents.set(doc, state);
     state.unload = () => this.forgetDocument(doc);
     doc.defaultView.addEventListener("unload", state.unload, { once: true });
@@ -218,13 +232,57 @@ var calendarAttachments = class extends ExtensionAPI {
     return state.editor ? Object.values(win.gAttachMap) : win.calendarItem.getAttachments();
   }
 
+  restoreNative(state) {
+    for (const [node, hidden] of state.hiddenNative) {
+      node.hidden = hidden;
+    }
+    state.hiddenNative.clear();
+  }
+
+  syncNative(state, attachments) {
+    this.restoreNative(state);
+    const hide = node => {
+      state.hiddenNative.set(node, node.hidden);
+      node.hidden = true;
+    };
+    if (state.editor) {
+      const list = state.doc.getElementById("attachment-link");
+      const managed = new Set(attachments.map(attachment => attachment.hashId));
+      for (const item of list.children) {
+        if (item.attachment && managed.has(item.attachment.hashId)) {
+          hide(item);
+        }
+      }
+      if (![...list.children].some(item => !item.hidden)) {
+        hide(list);
+      }
+    } else {
+      const summary = state.doc.getElementById("calendar-item-summary");
+      const urls = new Set(attachments.filter(attachment => this.data.isWebLink(attachment))
+        .map(attachment => attachment.uri.spec));
+      const items = [...summary.querySelectorAll(".attachment-template")].filter(item => !item.hidden);
+      for (const item of items) {
+        if (urls.has(item.querySelector("label")?.getAttribute("value"))) {
+          hide(item);
+        }
+      }
+      const row = summary.querySelector(".attachments-row");
+      if (row && items.length && items.every(item => item.hidden)) {
+        hide(row);
+      }
+    }
+  }
+
   render(state) {
     const { doc, editor } = state;
     const win = doc.defaultView;
-    const attachments = this.attachments(state).filter(att => this.data.isBinary(att));
+    const attachments = this.attachments(state)
+      .filter(att => this.data.isBinary(att) || this.data.isWebLink(att));
+    this.syncNative(state, attachments);
     state.rows.replaceChildren();
     state.heading.textContent = attachments.length ? `Attachments (${attachments.length})` : "Attachments";
     state.root.hidden = !editor && attachments.length === 0;
+    state.root.style.display = state.root.hidden ? "none" : "flex";
     const readOnly = editor && (win.gIsReadOnly || win.calendarItem.calendar.readOnly);
     if (editor) {
       state.add.disabled = readOnly;
@@ -240,22 +298,38 @@ var calendarAttachments = class extends ExtensionAPI {
     }
     for (const attachment of attachments) {
       const row = this.element(doc, "hbox", { align: "center", style: "display: flex; align-items: center; margin: 0; padding: 0; min-height: 0;" });
-      const name = this.data.fileName(attachment);
+      const binary = this.data.isBinary(attachment);
+      const name = this.data.displayName(attachment);
       const download = doc.createElementNS("http://www.w3.org/1999/xhtml", "a");
       download.textContent = name;
-      download.setAttribute("href", "#");
+      download.setAttribute("href", binary ? "#" : attachment.uri.spec);
       download.style.cssText = "display: block; color: var(--link-color, #58a6ff); text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; min-width: 0; flex: 1; margin: 0; padding: 2px 0;";
       download.addEventListener("click", event => {
         event.preventDefault();
-        this.saveFile(state, attachment).catch(error => this.showError(doc, error));
+        Promise.resolve().then(() => {
+          if (binary) {
+            return this.saveFile(state, attachment);
+          }
+          if (this.data.isWebLink(attachment)) {
+            openLinkExternally(attachment.uri, { addToHistory: false });
+          }
+          return undefined;
+        }).catch(error => this.showError(doc, error));
       });
-      download.setAttribute("tooltiptext", "Save this embedded file to your computer");
-      download.setAttribute("title", "Download attachment");
+      download.setAttribute("title", binary ? "Download attachment" : attachment.uri.spec);
       row.append(download);
       if (editor && !readOnly) {
         row.append(this.button(doc, "Remove", () => {
-          delete win.gAttachMap[attachment.hashId];
-          win.updateAttachment();
+          const list = doc.getElementById("attachment-link");
+          const nativeItem = [...list.children].find(item => item.attachment?.hashId === attachment.hashId);
+          if (nativeItem) {
+            // Use native deletion to keep its list, save map and cloud-file cleanup in sync.
+            list.selectedItem = nativeItem;
+            win.deleteAttachment();
+          } else {
+            delete win.gAttachMap[attachment.hashId];
+            win.updateAttachment();
+          }
           win.updateAccept();
           this.render(state);
         }));
@@ -343,7 +417,11 @@ var calendarAttachments = class extends ExtensionAPI {
     doc.defaultView.clearTimeout(state.timer);
     doc.defaultView.removeEventListener("unload", state.unload);
     state.observer?.disconnect();
+    this.restoreNative(state);
     state.root?.remove();
+    if (state.editor && state.root && !doc.defaultView.closed) {
+      doc.defaultView.updateAttachment();
+    }
     for (const item of state.menus || []) {
       item.remove();
     }
