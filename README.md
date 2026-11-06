@@ -125,7 +125,7 @@ thunderbird-tmail-label/
 
 ### Calendar attachments (prototype)
 
-1. Open an event's **Attachments** tab and click **Attach file...**, or choose **Attach > File from computer...**
+1. In the toolbar or the event's **Attachments** tab, choose **Attach > Webpage…** to attach a URL or **Attach > File from computer...** to attach a local file
 2. Save the event, then click an attachment's filename to download an embedded file or open a Drive link in your browser
 3. Use **Remove** in the editor to remove an attachment
 

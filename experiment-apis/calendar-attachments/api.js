@@ -6,6 +6,7 @@ var { CalAttachment } = ChromeUtils.importESModule("resource:///modules/CalAttac
 var { openLinkExternally } = ChromeUtils.importESModule("resource:///modules/LinkHelper.sys.mjs");
 var btoa = value => Services.appShell.hiddenDOMWindow.btoa(value);
 var atob = value => Services.appShell.hiddenDOMWindow.atob(value);
+const FILE_FROM_COMPUTER_LABEL = "File from computer...";
 
 var CalendarAttachmentData = {
   MAX_FILE_BYTES: 5 * 1024 * 1024,
@@ -188,7 +189,21 @@ var calendarAttachments = class extends ExtensionAPI {
     state.rows = this.element(doc, "vbox", { style: "display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0;" });
     root.append(state.rows);
     if (editor) {
-      const add = this.button(doc, "Attach file...", () => this.attachFiles(state));
+      const toolbar = win.parent.document;
+      const add = this.element(doc, "button", {
+        label: toolbar.getElementById("button-url")?.getAttribute("label") || "Attach",
+        type: "menu",
+      });
+      const popup = this.element(doc, "menupopup");
+      const webpage = this.element(doc, "menuitem", {
+        label: toolbar.getElementById("button-attach-url")?.getAttribute("label") ||
+          doc.getElementById("attachment-popup-attachPage")?.getAttribute("label") || "Webpage...",
+        command: "cmd_attach_url",
+      });
+      const file = this.element(doc, "menuitem", { label: FILE_FROM_COMPUTER_LABEL });
+      file.addEventListener("command", () => this.attachFiles(state).catch(error => this.showError(doc, error)));
+      popup.append(webpage, file);
+      add.append(popup);
       header.append(add);
       state.add = add;
       const list = doc.getElementById("attachment-link");
@@ -197,11 +212,11 @@ var calendarAttachments = class extends ExtensionAPI {
       state.observer.observe(list, { childList: true });
       state.observer.observe(doc.getElementById("item-calendar"), { attributes: true });
       state.menus = [];
-      if (win.parent.document.documentURI === "chrome://calendar/content/calendar-event-dialog.xhtml") {
+      if (toolbar.documentURI === "chrome://calendar/content/calendar-event-dialog.xhtml") {
         for (const id of ["button-attach-menupopup", "options-attachments-menupopup"]) {
-          const menu = win.parent.document.getElementById(id);
+          const menu = toolbar.getElementById(id);
           if (menu) {
-            const item = this.element(menu.ownerDocument, "menuitem", { label: "File from computer..." });
+            const item = this.element(menu.ownerDocument, "menuitem", { label: FILE_FROM_COMPUTER_LABEL });
             item.addEventListener("command", () => {
               doc.getElementById("event-grid-tabs").selectedItem = doc.getElementById("event-grid-tab-attachments");
               this.attachFiles(state).catch(error => this.showError(doc, error));
@@ -294,7 +309,7 @@ var calendarAttachments = class extends ExtensionAPI {
       }
     }
     if (editor && !attachments.length) {
-      state.rows.append(this.element(doc, "description", { value: "Choose a file to include its content in the calendar event." }));
+      state.rows.append(this.element(doc, "description", { value: "Attach a webpage or choose a file from your computer." }));
     }
     for (const attachment of attachments) {
       const row = this.element(doc, "hbox", { align: "center", style: "display: flex; align-items: center; margin: 0; padding: 0; min-height: 0;" });
