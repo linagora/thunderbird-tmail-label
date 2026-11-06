@@ -94,6 +94,7 @@ var calendarAttachments = class extends ExtensionAPI {
       return;
     }
     this.listenerId = `${id}-calendar-attachments`;
+    this.watchUploadErrors();
     ExtensionSupport.registerWindowListener(this.listenerId, {
       chromeURLs: [
         "chrome://messenger/content/messenger.xhtml",
@@ -103,6 +104,68 @@ var calendarAttachments = class extends ExtensionAPI {
       onLoadWindow: win => this.watchWindow(win),
       onUnloadWindow: win => this.forgetWindow(win),
     });
+  }
+
+  watchUploadErrors() {
+    const { CalDavItemRequest } = ChromeUtils.importESModule("resource:///modules/caldav/CalDavRequest.sys.mjs");
+    const { CalDavCalendar } = ChromeUtils.importESModule("resource:///modules/CalDavCalendar.sys.mjs");
+    const requests = CalDavItemRequest.prototype;
+    const calendars = CalDavCalendar.prototype;
+    const commitDescriptor = Object.getOwnPropertyDescriptor(requests, "commit");
+    const commit = requests.commit;
+    const report = calendars.reportDavError;
+    const pending = new WeakSet();
+    const owner = this;
+    let active = true;
+
+    // Observe the completed PUT before Offline Support converts a 503 into a
+    // locally cached save. The HTTP response and retry behaviour stay intact.
+    const wrappedCommit = async function (...args) {
+      const response = await commit.apply(this, args);
+      if (!active || response.status !== 503) {
+        return response;
+      }
+      try {
+        if (response.nsirequest.getResponseHeader("X-Twake-Attachment-Error") !== "upload-failed") {
+          return response;
+        }
+      } catch {
+        return response;
+      }
+      const win = Services.wm.getMostRecentWindow("mail:3pane");
+      if (win && this.calendar) {
+        pending.add(this.calendar);
+        win.setTimeout(() => {
+          pending.delete(this.calendar);
+          if (active && !win.closed) {
+            owner.showError(win.document, new Error("Could not upload the attachment. Please try saving the event again."));
+          }
+        }, 0);
+      }
+      return response;
+    };
+    const wrappedReport = function (code, ...args) {
+      // Uncached calendars otherwise show a second, technical error dialog.
+      if (pending.has(this) && code === Ci.calIErrors.DAV_PUT_ERROR) {
+        return;
+      }
+      return report.call(this, code, ...args);
+    };
+    requests.commit = wrappedCommit;
+    calendars.reportDavError = wrappedReport;
+    this.stopWatchingUploadErrors = () => {
+      active = false;
+      if (requests.commit === wrappedCommit) {
+        if (commitDescriptor) {
+          Object.defineProperty(requests, "commit", commitDescriptor);
+        } else {
+          delete requests.commit;
+        }
+      }
+      if (calendars.reportDavError === wrappedReport) {
+        calendars.reportDavError = report;
+      }
+    };
   }
 
   watchWindow(win) {
@@ -456,6 +519,7 @@ var calendarAttachments = class extends ExtensionAPI {
   }
 
   close() {
+    this.stopWatchingUploadErrors?.();
     if (this.listenerId) {
       ExtensionSupport.unregisterWindowListener(this.listenerId);
     }
