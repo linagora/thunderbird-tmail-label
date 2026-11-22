@@ -281,7 +281,9 @@ async function handleSync() {
  */
 async function handleSettingsChange() {
   settings.autoSyncOnStartup = elements.autoSync.checked;
-  settings.syncIntervalMinutes = parseInt(elements.syncInterval.value, 10) || 0;
+  settings.syncIntervalMinutes = TWAKE_MAIL.normalizeSyncInterval(elements.syncInterval.value);
+  // Show the value actually applied, e.g. 60 for 100 or 2 for 2.5.
+  elements.syncInterval.value = settings.syncIntervalMinutes;
 
   try {
     await browser.runtime.sendMessage({

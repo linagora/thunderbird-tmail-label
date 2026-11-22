@@ -79,10 +79,13 @@ async function loadSettings() {
     const data = await browser.storage.local.get(
       TWAKE_MAIL.STORAGE_KEYS.SETTINGS
     );
-    return {
+    const settings = {
       ...TWAKE_MAIL.DEFAULT_SETTINGS,
       ...(data[TWAKE_MAIL.STORAGE_KEYS.SETTINGS] || {}),
     };
+    // Earlier versions saved out-of-range values as typed.
+    settings.syncIntervalMinutes = TWAKE_MAIL.normalizeSyncInterval(settings.syncIntervalMinutes);
+    return settings;
   } catch (error) {
     console.error("Twake Mail: Failed to load settings", error);
     return TWAKE_MAIL.DEFAULT_SETTINGS;
@@ -226,6 +229,12 @@ async function handleGetSettings() {
 
 async function handleSaveSettings(settings) {
   try {
+    if (settings.syncIntervalMinutes !== undefined) {
+      settings = {
+        ...settings,
+        syncIntervalMinutes: TWAKE_MAIL.normalizeSyncInterval(settings.syncIntervalMinutes),
+      };
+    }
     await saveSettings(settings);
 
     // Update periodic sync if interval changed
