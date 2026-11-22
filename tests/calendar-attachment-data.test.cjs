@@ -166,3 +166,25 @@ test("encodes and decodes with the standard BASE64 alphabet and padding", () => 
   assert.equal(data.encode(bytes), "+/+//g==");
   assert.deepEqual(Array.from(data.decode(attachment("+/+//g=="))), Array.from(bytes));
 });
+
+test("Return on the Attach button opens its menu and does not reach the dialog", () => {
+  const button = { disabled: false };
+  const opened = [];
+  const popup = { state: "closed", openPopup: (anchor, position) => opened.push([anchor, position]) };
+  const key = (type, key, target = button) => {
+    const event = { type, key, target, prevented: false, stopped: false };
+    event.preventDefault = () => { event.prevented = true; };
+    event.stopPropagation = () => { event.stopped = true; };
+    ui.openMenuOnReturn(event, button, popup);
+    return event;
+  };
+  const down = key("keydown", "Enter");
+  const press = key("keypress", "Enter");
+  assert.equal(down.prevented && down.stopped && press.prevented && press.stopped, true);
+  assert.deepEqual(opened, [[button, "after_start"]]);
+  assert.equal(key("keydown", "Tab").prevented, false);
+  assert.equal(key("keydown", "Enter", {}).prevented, false);
+  button.disabled = true;
+  key("keydown", "Enter");
+  assert.equal(opened.length, 1);
+});

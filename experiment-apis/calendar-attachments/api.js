@@ -237,6 +237,17 @@ var calendarAttachments = class extends ExtensionAPI {
     return button;
   }
 
+  openMenuOnReturn(event, button, popup) {
+    if (event.key !== "Enter" || event.target !== button) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type === "keydown" && !button.disabled && popup.state === "closed") {
+      popup.openPopup(button, "after_start");
+    }
+  }
+
   mount(state) {
     const { doc, editor } = state;
     const win = doc.defaultView;
@@ -267,6 +278,10 @@ var calendarAttachments = class extends ExtensionAPI {
       file.addEventListener("command", () => this.attachFiles(state).catch(error => this.showError(doc, error)));
       popup.append(webpage, file);
       add.append(popup);
+      // A menu button does not consume Return: it would reach the event dialog
+      // and save and close it. Open the menu instead, as a click does.
+      add.addEventListener("keydown", event => this.openMenuOnReturn(event, add, popup));
+      add.addEventListener("keypress", event => this.openMenuOnReturn(event, add, popup));
       header.append(add);
       state.add = add;
       const list = doc.getElementById("attachment-link");
