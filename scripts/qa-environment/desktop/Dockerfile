@@ -21,7 +21,9 @@ RUN useradd -m -u 1000 qa \
  && mkdir -p /home/qa/.config/openbox \
  && sed 's#</applications>#<application class="*" type="normal"><maximized>yes</maximized><decor>no</decor></application></applications>#' \
       /etc/xdg/openbox/rc.xml > /home/qa/.config/openbox/rc.xml \
- && chmod -R a+rX /home/qa/.config
+ && chmod -R a+rX /home/qa/.config \
+ # any uid may run it (start.sh runs it as the caller): the X socket directory, and its user added by the entrypoint
+ && mkdir -m 1777 /tmp/.X11-unix && chmod 666 /etc/passwd /etc/group
 COPY desktop-mcp.py entrypoint.sh profile.py /opt/desktop/
 RUN chmod 755 /opt/desktop/entrypoint.sh /opt/desktop/desktop-mcp.py /opt/desktop/profile.py
 USER qa
