@@ -311,7 +311,11 @@ async function updateStatus() {
       const status = response.syncing ? "syncing" : response.status;
       let text;
 
-      if (response.lastSyncTime) {
+      if (status === "error" && response.error) {
+        text =
+          browser.i18n.getMessage("syncError", response.error) ||
+          `Error: ${response.error}`;
+      } else if (response.lastSyncTime) {
         const date = new Date(response.lastSyncTime);
         text =
           browser.i18n.getMessage("lastSync", date.toLocaleTimeString()) ||

@@ -69,7 +69,7 @@ var imapMetadata = class extends ExtensionAPI {
             return { success: true, labels };
           } catch (error) {
             console.error("Twake Mail: getLabels error", error);
-            return { success: false, error: error.message || String(error) };
+            return { success: false, error: error.message || String(error), unsupported: !!error.unsupported };
           }
         },
 
@@ -86,7 +86,7 @@ var imapMetadata = class extends ExtensionAPI {
             return { success: true, identities };
           } catch (error) {
             console.error("Twake Mail: getIdentities error", error);
-            return { success: false, error: error.message || String(error) };
+            return { success: false, error: error.message || String(error), unsupported: !!error.unsupported };
           }
         },
 
@@ -188,32 +188,24 @@ var imapMetadata = class extends ExtensionAPI {
     return { server, folder };
   }
 
+  // A failed read must reach the caller: an empty result would make the sync
+  // delete every tag and identity it created for the account.
   async fetchLabelsViaMetadata(server, folder) {
-    try {
-      console.log("Twake Mail: Fetching labels via raw IMAP");
-      return await this.fetchMetadataViaRawImap(
-        server, folder,
-        "/private/vendor/tmail/labels",
-        (line) => this.parseLabelsResponse(line)
-      );
-    } catch (err) {
-      console.warn("Twake Mail: Raw IMAP failed, using cached data", err);
-      return this._getCache(server.key, "labels");
-    }
+    console.log("Twake Mail: Fetching labels via raw IMAP");
+    return this.fetchMetadataViaRawImap(
+      server, folder,
+      "/private/vendor/tmail/labels",
+      (line) => this.parseLabelsResponse(line)
+    );
   }
 
   async fetchIdentitiesViaMetadata(server, folder) {
-    try {
-      console.log("Twake Mail: Fetching identities via raw IMAP");
-      return await this.fetchMetadataViaRawImap(
-        server, folder,
-        "/private/vendor/tmail/identities",
-        (line) => this.parseIdentitiesResponse(line)
-      );
-    } catch (err) {
-      console.warn("Twake Mail: Raw IMAP failed, using cached data", err);
-      return this._getCache(server.key, "identities");
-    }
+    console.log("Twake Mail: Fetching identities via raw IMAP");
+    return this.fetchMetadataViaRawImap(
+      server, folder,
+      "/private/vendor/tmail/identities",
+      (line) => this.parseIdentitiesResponse(line)
+    );
   }
 
   /**
@@ -234,7 +226,8 @@ var imapMetadata = class extends ExtensionAPI {
     // authenticated with the IMAP server). Falls back to nsILoginManager.
     const password = await this._getImapPassword(server);
     if (!password) {
-      throw new Error("Could not find IMAP password for account");
+      // OAuth accounts have no password: they cannot be read this way.
+      throw this.unsupported("No saved IMAP password for this account");
     }
 
     return new Promise((resolve, reject) => {
@@ -266,6 +259,7 @@ var imapMetadata = class extends ExtensionAPI {
         scriptStream.init(instream);
 
         let commandTag = 0;
+        let capabilities = null;
         let state = "greeting";
         let responseBuffer = "";
         const items = [];
@@ -289,6 +283,7 @@ var imapMetadata = class extends ExtensionAPI {
               for (const line of lines) {
                 if (!line) continue;
                 console.log("Twake Mail: Received:", line);
+                capabilities = this.parseCapabilities(line) || capabilities;
 
                 if (state === "greeting") {
                   if (line.startsWith("* OK")) {
@@ -296,7 +291,12 @@ var imapMetadata = class extends ExtensionAPI {
                     sendCommand(`LOGIN ${username} ${password}`);
                   }
                 } else if (state === "login") {
-                  if (line.match(/^A\d+ OK/)) {
+                  if (line.match(/^A\d+ OK/) && capabilities &&
+                      !capabilities.includes("METADATA") && !capabilities.includes("METADATA-SERVER")) {
+                    reject(this.unsupported("The server does not support IMAP METADATA"));
+                    cleanup();
+                    return;
+                  } else if (line.match(/^A\d+ OK/)) {
                     state = "getmetadata";
                     sendCommand(
                       `GETMETADATA "INBOX" (DEPTH infinity) ${metadataPath}`
@@ -313,14 +313,18 @@ var imapMetadata = class extends ExtensionAPI {
                   } else if (line.match(/^A\d+ OK/)) {
                     state = "logout";
                     sendCommand("LOGOUT");
-                  } else if (line.match(/^A\d+ (NO|BAD)/)) {
-                    console.warn("Twake Mail: GETMETADATA failed:", line);
-                    state = "logout";
-                    sendCommand("LOGOUT");
+                  } else if (line.match(/^A\d+ BAD/)) {
+                    // BAD: the command is unknown, the server is not Twake Mail.
+                    reject(this.unsupported("GETMETADATA not supported: " + line));
+                    cleanup();
+                    return;
+                  } else if (line.match(/^A\d+ NO/)) {
+                    reject(new Error("GETMETADATA failed: " + line));
+                    cleanup();
+                    return;
                   }
                 } else if (state === "logout") {
                   if (line.match(/^A\d+ OK/) || line.startsWith("* BYE")) {
-                    this._setCache(server.key, metadataPath, items);
                     resolve(items);
                     cleanup();
                     return;
@@ -368,6 +372,25 @@ var imapMetadata = class extends ExtensionAPI {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Capability list announced by a "[CAPABILITY ...]" response code or a
+   * "* CAPABILITY" response, upper-cased; null when the line has none.
+   */
+  parseCapabilities(line) {
+    const match = line.match(/\[CAPABILITY ([^\]]*)\]/i) || line.match(/^\* CAPABILITY (.*)$/i);
+    return match ? match[1].trim().toUpperCase().split(/\s+/) : null;
+  }
+
+  /**
+   * Error for an account that cannot hold Twake Mail metadata: the sync skips
+   * it instead of reporting a failure.
+   */
+  unsupported(message) {
+    const error = new Error(message);
+    error.unsupported = true;
+    return error;
   }
 
   /**
@@ -465,16 +488,6 @@ var imapMetadata = class extends ExtensionAPI {
       else if (property === "bcc") identity.bcc = value;
     }
     return Array.from(identities.values()).filter((i) => i.id && i.email);
-  }
-
-  _getCache(serverKey, path) {
-    if (!imapMetadata._cache) imapMetadata._cache = new Map();
-    return imapMetadata._cache.get(`${serverKey}:${path}`) || [];
-  }
-
-  _setCache(serverKey, path, items) {
-    if (!imapMetadata._cache) imapMetadata._cache = new Map();
-    imapMetadata._cache.set(`${serverKey}:${path}`, items);
   }
 
 };

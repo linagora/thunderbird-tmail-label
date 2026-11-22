@@ -55,8 +55,16 @@ const IdentitySyncService = {
 
   async syncAll() {
     const accounts = await browser.imapMetadata.getImapAccounts();
+    const failures = [];
     for (const account of accounts) {
-      await this.syncAccount(account.id);
+      try {
+        await this.syncAccount(account.id);
+      } catch (error) {
+        failures.push(`${account.name}: ${error.message}`);
+      }
+    }
+    if (failures.length) {
+      throw new Error(failures.join("; "));
     }
   },
 
@@ -64,9 +72,14 @@ const IdentitySyncService = {
     console.log("Twake Mail: Syncing identities for account", accountId);
 
     const result = await browser.imapMetadata.getIdentities(accountId);
+    // Throw before the cleanup below: a failed read must not delete identities.
+    if (!result.success && result.unsupported) {
+      console.log("Twake Mail: Skipping account without Twake Mail identities", accountId, result.error);
+      return;
+    }
     if (!result.success) {
       console.warn("Twake Mail: Failed to fetch identities for account", accountId, result.error);
-      return;
+      throw new Error(result.error || "Could not read the identities");
     }
 
     // Only sync custom identities (mayDelete: true)

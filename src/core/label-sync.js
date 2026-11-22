@@ -123,8 +123,17 @@ const LabelSyncService = {
       const accounts = await browser.imapMetadata.getImapAccounts();
       console.log("Twake Mail: Syncing", accounts.length, "IMAP accounts");
 
+      // One unreachable account must not stop the others from syncing.
+      const failures = [];
       for (const account of accounts) {
-        await this.syncAccount(account.id);
+        try {
+          await this.syncAccount(account.id);
+        } catch (error) {
+          failures.push(`${account.name}: ${error.message}`);
+        }
+      }
+      if (failures.length) {
+        throw new Error(failures.join("; "));
       }
 
       this._lastSyncTime = Date.now();
@@ -150,13 +159,19 @@ const LabelSyncService = {
     // Fetch labels from TMail server
     const result = await browser.imapMetadata.getLabels(accountId);
 
+    // Throw before the orphan cleanup below: a failed read is not an empty
+    // label list, and must not delete the account's tags.
+    if (!result.success && result.unsupported) {
+      console.log("Twake Mail: Skipping account without Twake Mail labels", accountId, result.error);
+      return;
+    }
     if (!result.success) {
       console.warn(
         "Twake Mail: Failed to fetch labels for account",
         accountId,
         result.error
       );
-      return;
+      throw new Error(result.error || "Could not read the labels");
     }
 
     const serverLabels = result.labels || [];
