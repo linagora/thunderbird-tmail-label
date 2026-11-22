@@ -45,6 +45,11 @@
           "error": {
             "type": "string",
             "optional": true
+          },
+          "unsupported": {
+            "type": "boolean",
+            "optional": true,
+            "description": "True when the account cannot hold Twake Mail metadata (no METADATA support, no saved password)"
           }
         }
       },
@@ -163,7 +168,8 @@
                     "items": { "$ref": "TwakeIdentity" },
                     "optional": true
                   },
-                  "error": { "type": "string", "optional": true }
+                  "error": { "type": "string", "optional": true },
+                  "unsupported": { "type": "boolean", "optional": true }
                 }
               }
             ]

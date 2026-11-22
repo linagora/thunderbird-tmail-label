@@ -10,6 +10,30 @@
 // Sync interval timer
 let syncIntervalId = null;
 
+// Error of the last sync, shown by the popup; null when it succeeded
+let lastSyncError = null;
+
+/**
+ * Sync labels then identities of every account. Identities are synced even
+ * when labels fail; the errors of both are reported together.
+ */
+async function syncAll() {
+  const errors = [];
+  for (const service of [LabelSyncService, IdentitySyncService]) {
+    try {
+      await service.syncAll();
+    } catch (error) {
+      if (!errors.includes(error.message)) {
+        errors.push(error.message);
+      }
+    }
+  }
+  lastSyncError = errors.length ? errors.join("; ") : null;
+  if (lastSyncError) {
+    throw new Error(lastSyncError);
+  }
+}
+
 /**
  * Initialize the extension
  */
@@ -33,8 +57,7 @@ async function init() {
   if (settings.autoSyncOnStartup) {
     console.log("Twake Mail: Running auto-sync on startup");
     try {
-      await LabelSyncService.syncAll();
-      await IdentitySyncService.syncAll();
+      await syncAll();
     } catch (error) {
       console.error("Twake Mail: Auto-sync failed", error);
     }
@@ -90,8 +113,7 @@ function setupPeriodicSync(intervalMinutes) {
   syncIntervalId = setInterval(async () => {
     console.log("Twake Mail: Running periodic sync");
     try {
-      await LabelSyncService.syncAll();
-      await IdentitySyncService.syncAll();
+      await syncAll();
     } catch (error) {
       console.error("Twake Mail: Periodic sync failed", error);
     }
@@ -146,8 +168,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
 
 async function handleSyncAll() {
   try {
-    await LabelSyncService.syncAll();
-    await IdentitySyncService.syncAll();
+    await syncAll();
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -165,6 +186,9 @@ async function handleSyncAccount(accountId) {
 
 async function handleGetStatus() {
   const status = LabelSyncService.getStatus();
+  if (lastSyncError && !status.syncing) {
+    return { success: true, ...status, status: TWAKE_MAIL.SYNC_STATUS.ERROR, error: lastSyncError };
+  }
   return { success: true, ...status };
 }
 
