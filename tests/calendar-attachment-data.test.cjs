@@ -4,9 +4,23 @@ const { readFileSync } = require("node:fs");
 const vm = require("node:vm");
 const { webcrypto } = require("node:crypto");
 
-const scope = vm.createContext({ btoa, atob, Uint8Array });
+// ChromeUtils' base64URL helpers, which use the URL-safe alphabet like Gecko's.
+const ChromeUtils = {
+  base64URLEncode(bytes, { pad }) {
+    const encoded = Buffer.from(bytes).toString("base64url");
+    return pad ? encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=") : encoded;
+  },
+  base64URLDecode(text, { padding }) {
+    if (padding === "require" && text.length % 4 !== 0) {
+      throw new Error("NS_ERROR_ILLEGAL_VALUE");
+    }
+    const bytes = Buffer.from(text, "base64url");
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length);
+  },
+};
+const scope = vm.createContext({ ChromeUtils, Uint8Array });
 const source = readFileSync(`${__dirname}/../experiment-apis/calendar-attachments/api.js`, "utf8");
-vm.runInContext(source.slice(source.indexOf("var CalendarAttachmentData"), source.indexOf("var calendarAttachments")), scope);
+vm.runInContext(source.slice(source.indexOf("var encodeBase64"), source.indexOf("var calendarAttachments")), scope);
 const data = scope.CalendarAttachmentData;
 scope.ExtensionAPI = class {};
 vm.runInContext(source.slice(source.indexOf("var calendarAttachments")), scope);
@@ -145,4 +159,10 @@ test("enforces the file size boundary for both adding and downloading", () => {
   assert.throws(() => data.encode(new Uint8Array(data.MAX_FILE_BYTES + 1)), /no larger than/);
   assert.throws(() => data.decode(attachment("A".repeat(Math.ceil((data.MAX_FILE_BYTES + 3) / 3) * 4))), /too large/);
   assert.throws(() => data.encode(new Uint8Array()), /non-empty/);
+});
+
+test("encodes and decodes with the standard BASE64 alphabet and padding", () => {
+  const bytes = new Uint8Array([0xfb, 0xff, 0xbf, 0xfe]);
+  assert.equal(data.encode(bytes), "+/+//g==");
+  assert.deepEqual(Array.from(data.decode(attachment("+/+//g=="))), Array.from(bytes));
 });

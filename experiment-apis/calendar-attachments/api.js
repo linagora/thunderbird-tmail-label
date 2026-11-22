@@ -4,8 +4,12 @@
 var { ExtensionSupport } = ChromeUtils.importESModule("resource:///modules/ExtensionSupport.sys.mjs");
 var { CalAttachment } = ChromeUtils.importESModule("resource:///modules/CalAttachment.sys.mjs");
 var { openLinkExternally } = ChromeUtils.importESModule("resource:///modules/LinkHelper.sys.mjs");
-var btoa = value => Services.appShell.hiddenDOMWindow.btoa(value);
-var atob = value => Services.appShell.hiddenDOMWindow.atob(value);
+// Thunderbird 153 has no hidden DOM window on Linux and Windows, so base64 goes
+// through ChromeUtils: its URL-safe alphabet is mapped to the standard one.
+var encodeBase64 = bytes => ChromeUtils.base64URLEncode(bytes, { pad: true })
+  .replace(/-/g, "+").replace(/_/g, "/");
+var decodeBase64 = text => new Uint8Array(ChromeUtils.base64URLDecode(
+  text.replace(/\+/g, "-").replace(/\//g, "_"), { padding: "require" }));
 const FILE_FROM_COMPUTER_LABEL = "File from computer...";
 
 var CalendarAttachmentData = {
@@ -44,11 +48,7 @@ var CalendarAttachmentData = {
     if (!bytes.length || bytes.length > this.MAX_FILE_BYTES) {
       throw new Error("Choose a non-empty file no larger than 5 MiB.");
     }
-    let binary = "";
-    for (let offset = 0; offset < bytes.length; offset += 32768) {
-      binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
-    }
-    return btoa(binary);
+    return encodeBase64(bytes);
   },
 
   base64(attachment) {
@@ -76,7 +76,7 @@ var CalendarAttachmentData = {
   },
 
   decode(attachment) {
-    return Uint8Array.from(atob(this.base64(attachment)), char => char.charCodeAt(0));
+    return decodeBase64(this.base64(attachment));
   },
 };
 
