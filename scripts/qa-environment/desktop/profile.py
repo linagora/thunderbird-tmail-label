@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes the Thunderbird profile of the QA environment in /qa (run by start.sh in the desktop image, on the network
 of the stack): one mail account per user (IMAP james:143, SMTP james:587; no TLS, a sandbox), the CalDAV calendars
-each user has on esn-sabre (found through http://dav), the passwords saved (mozilla.cfg, AutoConfig, at startup),
+and CardDAV address books each user has on esn-sabre (found through http://dav, when there is one), the passwords saved (mozilla.cfg, AutoConfig, at startup),
 the extension (/qa/extension.xpi) installed, the first-run screens off.
 
   profile.py <domain> <password> <uid>...
@@ -18,7 +18,7 @@ from xml.etree import ElementTree
 DAV = "http://dav"
 EXTENSION_ID = "thunderbird-labels@yadd.github.io"
 QA = Path("/qa")
-NS = {"d": "DAV:", "c": "urn:ietf:params:xml:ns:caldav", "a": "http://apple.com/ns/ical/"}
+NS = {"d": "DAV:", "c": "urn:ietf:params:xml:ns:caldav", "a": "http://apple.com/ns/ical/", "r": "urn:ietf:params:xml:ns:carddav"}
 
 
 def propfind(url, body, user, password, depth="0"):
@@ -39,6 +39,26 @@ def realm():
     except Exception:  # no CalDAV server: the mail accounts alone
         pass
     return None
+
+
+def address_books(user, password):
+    """[(url, name)] of the address books of the user, through current-user-principal and addressbook-home-set."""
+    root = propfind(DAV + "/", '<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>', user, password)
+    principal = root.find(".//d:current-user-principal/d:href", NS).text
+    root = propfind(DAV + principal, '<d:propfind xmlns:d="DAV:" xmlns:r="urn:ietf:params:xml:ns:carddav"><d:prop>'
+                    '<r:addressbook-home-set/></d:prop></d:propfind>', user, password)
+    home = root.find(".//r:addressbook-home-set/d:href", NS)
+    if home is None:
+        return []
+    root = propfind(DAV + home.text, '<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:displayname/></d:prop>'
+                    '</d:propfind>', user, password, depth="1")
+    out = []
+    for resp in root.findall("d:response", NS):
+        if resp.find(".//d:resourcetype/r:addressbook", NS) is None:
+            continue
+        name = (resp.findtext(".//d:displayname", "", NS) or "").strip() or resp.find("d:href", NS).text.rstrip("/").split("/")[-1]
+        out.append((DAV + resp.find("d:href", NS).text, name))
+    return out
 
 
 def calendars(user, password):
@@ -109,7 +129,7 @@ def main():
                   "mail.accountmanager.defaultaccount": "account1", "mail.accountmanager.localfoldersserver": f"server{n}",
                   "mail.smtpservers": ",".join(f"smtp{i}" for i in range(1, len(uids) + 1)), "mail.smtp.defaultserver": "smtp1"})
     dav_realm = realm()
-    found = []
+    found, found_books = [], []
     for uid in uids:
         email = f"{uid}@{domain}"
         try:
@@ -125,6 +145,17 @@ def main():
                           f"calendar.registry.{cid}.calendar-main-in-composite": True,
                           f"calendar.registry.{cid}.imip.identity.key": f"id{uids.index(uid) + 1}"})
             found.append(f"{uid}: {name} {url}")
+        try:
+            books = address_books(email, password)
+        except Exception as e:
+            print(f"    CardDAV of {email}: {e}", file=sys.stderr)
+            books = []
+        for n, (url, name) in enumerate(books):
+            key = f"qa_{uid}_{n}"
+            prefs.update({f"ldap_2.servers.{key}.description": f"{name} ({uid})", f"ldap_2.servers.{key}.dirType": 102,
+                          f"ldap_2.servers.{key}.filename": f"{key}.sqlite", f"ldap_2.servers.{key}.carddav.url": url,
+                          f"ldap_2.servers.{key}.carddav.username": email})
+            found_books.append(f"{uid}: {name}")
         if dav_realm is not None:
             logins.append(("http://dav", dav_realm, email))
     (profile / "user.js").write_text("".join(f"user_pref({json.dumps(k)}, {json.dumps(v)});\n" for k, v in prefs.items()))
@@ -147,6 +178,7 @@ Services.obs.addObserver(function saveLogins() {{
 """)
     print(f"    accounts: {', '.join(f'{u}@{domain}' for u in uids)} (password {password})")
     print("    calendars: " + ("; ".join(found) if found else "none found") + f" (CalDAV realm: {dav_realm})")
+    print("    address books: " + ("; ".join(found_books) if found_books else "none found"))
 
 
 if __name__ == "__main__":

@@ -7,6 +7,9 @@
 set -euo pipefail
 SIZE="${DESKTOP_SIZE:-1440x900}"
 mkdir -p "${HOME:-/tmp/qa-home}"
+# run as any uid (that of the caller): dbus needs a user and a group for it
+getent passwd "$(id -u)" >/dev/null || echo "qa-$(id -u):x:$(id -u):$(id -g):QA:${HOME:-/tmp/qa-home}:/bin/bash" >> /etc/passwd
+getent group "$(id -g)" >/dev/null || echo "qa-$(id -g):x:$(id -g):" >> /etc/group
 Xvfb :99 -screen 0 "${SIZE}x24" -nolisten tcp &
 for _ in $(seq 1 50); do xdpyinfo >/dev/null 2>&1 && break; sleep 0.1; done
 eval "$(dbus-launch --sh-syntax)"
