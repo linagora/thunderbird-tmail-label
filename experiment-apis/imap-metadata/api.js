@@ -218,8 +218,9 @@ var imapMetadata = class extends ExtensionAPI {
       throw new Error(`No IMAP host name for account ${server.key}`);
     }
     const port = server.port || 993;
-    const useSSL = server.socketType === Ci.nsMsgSocketType.SSL;
+    const { useSSL, startTLS } = this.connectionSecurity(server);
     const username = server.username;
+    this.checkAuthMethod(server, useSSL || startTLS);
 
     // Resolve password before opening the socket.
     // server.password returns the in-memory cached password (set when Thunderbird
@@ -229,16 +230,18 @@ var imapMetadata = class extends ExtensionAPI {
       // OAuth accounts have no password: they cannot be read this way.
       throw this.unsupported("No saved IMAP password for this account");
     }
+    const loginParts = this.loginParts(username, password);
 
     return new Promise((resolve, reject) => {
       try {
-        console.log(`Twake Mail: Connecting to ${host}:${port} (SSL: ${useSSL})`);
+        console.log(`Twake Mail: Connecting to ${host}:${port} (SSL: ${useSSL}, STARTTLS: ${startTLS})`);
 
         const transportService = Cc[
           "@mozilla.org/network/socket-transport-service;1"
         ].getService(Ci.nsISocketTransportService);
 
-        const socketTypes = useSSL ? ["ssl"] : [];
+        // "starttls" sets up a TLS layer that stays off until asyncStartTLS().
+        const socketTypes = useSSL ? ["ssl"] : startTLS ? ["starttls"] : [];
         const transport = transportService.createTransport(
           socketTypes,
           host,
@@ -260,23 +263,100 @@ var imapMetadata = class extends ExtensionAPI {
 
         const trace = this.traceEnabled();
         let commandTag = 0;
+        let loginContinuations = [];
         let capabilities = null;
         let state = "greeting";
         let responseBuffer = "";
         const items = [];
 
-        // `shown` replaces the command in the trace: credentials are never logged.
+        // Bytes not written yet: the stream is non-blocking, so write() can
+        // take part of them, or none while the TLS handshake runs.
+        let pending = "";
+        const flush = () => {
+          while (pending) {
+            let written;
+            try {
+              written = outstream.write(pending, pending.length);
+            } catch (e) {
+              if (e.name === "NS_BASE_STREAM_WOULD_BLOCK") {
+                return;
+              }
+              throw e;
+            }
+            pending = pending.slice(written);
+          }
+        };
+
+        // `shown` replaces the text in the trace: credentials are never logged.
+        const send = (text, shown) => {
+          if (trace) {
+            console.log("Twake Mail: Sending:", shown);
+          }
+          // write() takes bytes: send the text as UTF-8.
+          pending += unescape(encodeURIComponent(`${text}\r\n`));
+          flush();
+        };
+
         const sendCommand = (cmd, shown = cmd) => {
           commandTag++;
-          const fullCmd = `A${commandTag} ${cmd}\r\n`;
-          if (trace) {
-            console.log("Twake Mail: Sending:", `A${commandTag} ${shown}`);
+          send(`A${commandTag} ${cmd}`, `A${commandTag} ${shown}`);
+        };
+
+        const fail = (error) => {
+          reject(error);
+          cleanup();
+        };
+
+        const login = () => {
+          if (capabilities && capabilities.includes("LOGINDISABLED")) {
+            fail(this.unsupported("The server does not accept LOGIN on this connection (LOGINDISABLED)"));
+            return;
           }
-          outstream.write(fullCmd, fullCmd.length);
+          // Parts after the first are literals, sent on the server's "+".
+          loginContinuations = loginParts.slice(1);
+          state = "login";
+          sendCommand(loginParts[0], "LOGIN <redacted>");
+        };
+
+        // Only capabilities announced once authenticated tell whether the
+        // server has METADATA: they often change after login.
+        const afterLogin = (line) => {
+          const announced = this.parseCapabilities(line);
+          if (announced && !announced.includes("METADATA") && !announced.includes("METADATA-SERVER")) {
+            fail(this.unsupported("The server does not support IMAP METADATA"));
+            return;
+          }
+          state = "getmetadata";
+          sendCommand(`GETMETADATA "INBOX" (DEPTH infinity) ${metadataPath}`);
+        };
+
+        // Upgrades the connection after the server's OK to STARTTLS. Reading
+        // stops meanwhile; anything the server sent before the handshake is
+        // dropped (it was not protected), and so are the capabilities.
+        const upgrade = () => {
+          state = "upgrading";
+          responseBuffer = "";
+          capabilities = null;
+          Promise.resolve()
+            .then(() => transport.tlsSocketControl.QueryInterface(Ci.nsITLSSocketControl).asyncStartTLS())
+            .then(() => {
+              state = "capability";
+              sendCommand("CAPABILITY");
+              schedule();
+            })
+            .catch((error) => fail(new Error("STARTTLS failed: " + (error.message || error))));
+        };
+
+        const schedule = () => {
+          Services.tm.currentThread.dispatch(
+            { run: processResponse },
+            Ci.nsIThread.DISPATCH_NORMAL
+          );
         };
 
         const processResponse = () => {
           try {
+            flush();
             const available = scriptStream.available();
             if (available > 0) {
               responseBuffer += scriptStream.read(available);
@@ -291,22 +371,48 @@ var imapMetadata = class extends ExtensionAPI {
                 }
                 capabilities = this.parseCapabilities(line) || capabilities;
 
-                if (state === "greeting") {
-                  if (line.startsWith("* OK")) {
-                    state = "login";
-                    sendCommand(`LOGIN ${username} ${password}`, "LOGIN <redacted>");
+                if (state === "greeting" && line.startsWith("* PREAUTH")) {
+                  if (startTLS) {
+                    // STARTTLS is not allowed once authenticated: this would stay in clear.
+                    fail(new Error("The server pre-authenticated a connection that must use STARTTLS"));
+                    return;
+                  }
+                  afterLogin(line);
+                } else if (state === "greeting") {
+                  if (!line.startsWith("* OK")) {
+                    fail(new Error("Unexpected IMAP greeting: " + line));
+                    return;
+                  }
+                  if (!startTLS) {
+                    login();
+                  } else if (capabilities && !capabilities.includes("STARTTLS")) {
+                    // Never fall back to a cleartext LOGIN: the account asks for TLS.
+                    fail(new Error("The server does not offer STARTTLS"));
+                    return;
+                  } else {
+                    state = "starttls";
+                    sendCommand("STARTTLS");
+                  }
+                } else if (state === "starttls") {
+                  if (line.match(/^A\d+ OK/)) {
+                    upgrade();
+                    break;
+                  } else if (line.match(/^A\d+ (NO|BAD)/)) {
+                    fail(new Error("STARTTLS refused: " + line));
+                    return;
+                  }
+                } else if (state === "capability") {
+                  if (line.match(/^A\d+ OK/)) {
+                    login();
+                  } else if (line.match(/^A\d+ (NO|BAD)/)) {
+                    fail(new Error("CAPABILITY failed: " + line));
+                    return;
                   }
                 } else if (state === "login") {
-                  if (line.match(/^A\d+ OK/) && capabilities &&
-                      !capabilities.includes("METADATA") && !capabilities.includes("METADATA-SERVER")) {
-                    reject(this.unsupported("The server does not support IMAP METADATA"));
-                    cleanup();
-                    return;
+                  if (line.startsWith("+") && loginContinuations.length) {
+                    send(loginContinuations.shift(), "<redacted>");
                   } else if (line.match(/^A\d+ OK/)) {
-                    state = "getmetadata";
-                    sendCommand(
-                      `GETMETADATA "INBOX" (DEPTH infinity) ${metadataPath}`
-                    );
+                    afterLogin(line);
                   } else if (line.match(/^A\d+ (NO|BAD)/)) {
                     reject(new Error("Login failed: " + line));
                     cleanup();
@@ -339,22 +445,16 @@ var imapMetadata = class extends ExtensionAPI {
               }
             }
 
-            if (state !== "done") {
-              Services.tm.currentThread.dispatch(
-                { run: processResponse },
-                Ci.nsIThread.DISPATCH_NORMAL
-              );
+            if (state !== "done" && state !== "upgrading") {
+              schedule();
             }
           } catch (e) {
             if (e.name !== "NS_BASE_STREAM_WOULD_BLOCK") {
               console.error("Twake Mail: Read error", e);
               reject(e);
               cleanup();
-            } else {
-              Services.tm.currentThread.dispatch(
-                { run: processResponse },
-                Ci.nsIThread.DISPATCH_NORMAL
-              );
+            } else if (state !== "done" && state !== "upgrading") {
+              schedule();
             }
           }
         };
@@ -378,6 +478,59 @@ var imapMetadata = class extends ExtensionAPI {
         reject(error);
       }
     });
+  }
+
+  /**
+   * TLS mode of the account: implicit TLS, or STARTTLS before authenticating.
+   * trySTARTTLS, deprecated, is handled as alwaysSTARTTLS: no cleartext fallback.
+   */
+  connectionSecurity(server) {
+    const types = Ci.nsMsgSocketType;
+    return {
+      useSSL: server.socketType === types.SSL,
+      startTLS: server.socketType === types.alwaysSTARTTLS ||
+        server.socketType === (types.trySTARTTLS ?? 1),
+    };
+  }
+
+  /**
+   * The raw connection authenticates with LOGIN, i.e. a password sent as is:
+   * only allowed when the account uses a normal password ("anything" only
+   * over TLS). Other methods (encrypted password, Kerberos, NTLM, OAuth...)
+   * exist so that the password never travels in clear.
+   */
+  checkAuthMethod(server, encrypted) {
+    const methods = Ci.nsMsgAuthMethod;
+    const method = server.authMethod;
+    if (method === undefined || method === methods.passwordCleartext || method === methods.old ||
+        (encrypted && method === methods.anything)) {
+      return;
+    }
+    throw this.unsupported(`Authentication method ${method} is not supported; it needs a normal password`);
+  }
+
+  /**
+   * LOGIN command split where the server must answer "+" before a literal.
+   * ASCII values are quoted strings (RFC 3501); others, which quoted strings
+   * cannot hold, are {n} literals of their UTF-8 bytes. Line breaks and NUL
+   * are refused.
+   */
+  loginParts(username, password) {
+    const parts = [];
+    let current = "LOGIN";
+    for (const value of [String(username), String(password)]) {
+      if (/[\r\n\0]/.test(value)) {
+        throw new Error("Credentials cannot contain line breaks");
+      }
+      if (/^[\x01-\x7f]*$/.test(value)) {
+        current += ` "${value.replace(/[\\"]/g, "\\$&")}"`;
+      } else {
+        parts.push(`${current} {${unescape(encodeURIComponent(value)).length}}`);
+        current = value;
+      }
+    }
+    parts.push(current);
+    return parts;
   }
 
   /**
