@@ -229,8 +229,8 @@ var calendarAttachments = class extends ExtensionAPI {
     return node;
   }
 
-  button(doc, label, action) {
-    const button = this.element(doc, "button", { label });
+  button(doc, label, action, attributes = {}) {
+    const button = this.element(doc, "button", { label, ...attributes });
     button.addEventListener("command", () => {
       Promise.resolve().then(action).catch(error => this.showError(doc, error));
     });
@@ -425,7 +425,7 @@ var calendarAttachments = class extends ExtensionAPI {
           }
           win.updateAccept();
           this.render(state);
-        }));
+        }, { "aria-label": `Remove ${name}`, tooltiptext: `Remove ${name}` }));
       }
       state.rows.append(row);
     }
