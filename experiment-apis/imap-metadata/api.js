@@ -46,8 +46,8 @@ var imapMetadata = class extends ExtensionAPI {
             if (server && server.type === "imap") {
               accounts.push({
                 id: account.key,
-                name: server.prettyName || server.hostName,
-                serverHost: server.hostName,
+                name: server.prettyName || self.hostOf(server),
+                serverHost: self.hostOf(server),
                 username: server.username,
               });
             }
@@ -136,6 +136,14 @@ var imapMetadata = class extends ExtensionAPI {
   }
 
   /**
+   * Host name of an incoming server. Thunderbird 153 renamed
+   * nsIMsgIncomingServer.hostName to hostname; older versions only have hostName.
+   */
+  hostOf(server) {
+    return server.hostname || server.hostName;
+  }
+
+  /**
    * Get server and folder objects from account ID and folder path
    */
   getServerAndFolder(accountId, folderPath) {
@@ -213,7 +221,10 @@ var imapMetadata = class extends ExtensionAPI {
    * with the provided parseFn.
    */
   async fetchMetadataViaRawImap(server, folder, metadataPath, parseFn) {
-    const host = server.hostName;
+    const host = this.hostOf(server);
+    if (!host) {
+      throw new Error(`No IMAP host name for account ${server.key}`);
+    }
     const port = server.port || 993;
     const useSSL = server.socketType === Ci.nsMsgSocketType.SSL;
     const username = server.username;
@@ -365,8 +376,8 @@ var imapMetadata = class extends ExtensionAPI {
    * Primary: server.password — Thunderbird caches this after the first
    * successful IMAP login in the session (no UI prompt, no keyring access).
    *
-   * Fallback: nsILoginManager.findLogins() — works whether the API is
-   * synchronous (older TB) or returns a Promise (TB 128+).
+   * Fallback: nsILoginManager.searchLoginsAsync(), or findLogins() on
+   * versions without it.
    */
   async _getImapPassword(server) {
     // Primary: in-memory cache on the server object
@@ -378,7 +389,7 @@ var imapMetadata = class extends ExtensionAPI {
     }
 
     // Fallback: login manager
-    const host = server.hostName;
+    const host = this.hostOf(server);
     const port = server.port || 993;
     const username = server.username;
     const loginManager = Cc[
@@ -394,7 +405,10 @@ var imapMetadata = class extends ExtensionAPI {
 
     for (const [origin, realm] of candidates) {
       try {
-        const logins = await loginManager.findLogins(origin, null, realm);
+        // Thunderbird 153 removed findLogins(); searchLoginsAsync() exists since 128.
+        const logins = typeof loginManager.searchLoginsAsync === "function"
+          ? await loginManager.searchLoginsAsync(realm ? { origin, httpRealm: realm } : { origin })
+          : await loginManager.findLogins(origin, null, realm);
         if (logins && logins.length) {
           for (const login of logins) {
             if (login.username === username) return login.password;
