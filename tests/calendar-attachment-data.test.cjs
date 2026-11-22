@@ -188,3 +188,35 @@ test("Return on the Attach button opens its menu and does not reach the dialog",
   key("keydown", "Enter");
   assert.equal(opened.length, 1);
 });
+
+test("names each Remove button after its attachment", () => {
+  const node = () => ({
+    attributes: {}, children: [], style: {}, hidden: false,
+    setAttribute(key, value) { this.attributes[key] = value; },
+    getAttribute(key) { return this.attributes[key]; },
+    append(...nodes) { this.children.push(...nodes); },
+    replaceChildren() { this.children = []; },
+    addEventListener() {},
+  });
+  const elements = { "attachment-link": node(), "event-grid-tab-attachments": node() };
+  const win = {
+    gAttachMap: {
+      a: webAttachment("https://example.com/doc.pdf"),
+      b: webAttachment("https://example.org/two"),
+    },
+    attachmentTabLabel: "Attachments:",
+    calendarItem: { calendar: { readOnly: false } },
+  };
+  const doc = {
+    defaultView: win,
+    createXULElement: node,
+    createElementNS: node,
+    getElementById: id => elements[id],
+  };
+  const state = { doc, editor: true, hiddenNative: new Map(), rows: node(), heading: node(), root: node(), add: node(), menus: [] };
+  ui.render(state);
+  const buttons = state.rows.children.map(row => row.children.find(child => child.attributes.label === "Remove"));
+  assert.deepEqual(buttons.map(button => button.attributes["aria-label"]),
+    ["Remove https://example.com/doc.pdf", "Remove https://example.org/two"]);
+  assert.equal(buttons[0].attributes.tooltiptext, "Remove https://example.com/doc.pdf");
+});
