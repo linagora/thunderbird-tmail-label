@@ -36,7 +36,16 @@ function attachment(rawData, parameters = {}) {
 
 function webAttachment(uri, parameters = {}) {
   return {
-    uri: { spec: uri, scheme: uri.split(":", 1)[0] },
+    uri: {
+      spec: uri,
+      scheme: uri.split(":", 1)[0],
+      // Like nsIURI, which throws for URIs without a host.
+      get host() {
+        const { host } = new URL(uri);
+        if (!host) throw new Error("NS_ERROR_FAILURE");
+        return host;
+      },
+    },
     getParameter: key => parameters[key],
   };
 }
@@ -50,7 +59,7 @@ test("recognizes Drive sharing links alongside inline attachments", () => {
   assert.equal(data.isWebLink(inline), false);
   assert.equal(data.isBinary(drive), false);
   assert.equal(data.isWebLink(drive), true);
-  assert.equal(data.displayName(drive), "report.pdf");
+  assert.equal(data.displayName(drive), "drive.example.com — report.pdf");
   assert.equal(data.isWebLink(webAttachment("http://localhost/agenda.txt")), true);
   assert.equal(data.isWebLink(webAttachment("HTTPS://drive.example.com/file")), true);
 });
@@ -60,11 +69,11 @@ test("uses URI filename metadata with a URL fallback without changing attachment
     "X-FILENAME": " report.pdf ", FILENAME: "other.pdf",
   });
   const before = JSON.stringify(drive);
-  assert.equal(data.displayName(drive), "report.pdf");
+  assert.equal(data.displayName(drive), "drive.example.com — report.pdf");
   assert.equal(JSON.stringify(drive), before);
   assert.equal(data.displayName(webAttachment("https://example.com/file", {
     "X-FILENAME": "  ", FILENAME: "fallback.txt",
-  })), "fallback.txt");
+  })), "example.com — fallback.txt");
   assert.equal(data.displayName(webAttachment("https://example.com/file")), "https://example.com/file");
   assert.equal(data.displayName(attachment("AA==", { FILENAME: "local.bin" })), "local.bin");
 });
@@ -85,7 +94,7 @@ test("keeps a Drive sharing query and fragment intact when presenting its filena
     FMTTYPE: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
   assert.equal(data.isWebLink(drive), true);
-  assert.equal(data.displayName(drive), "Twake-Sync-Setup-Guide-EN.docx");
+  assert.equal(data.displayName(drive), "drive.example.com — Twake-Sync-Setup-Guide-EN.docx");
   assert.equal(drive.uri.spec, uri);
   assert.equal(drive.getParameter("FMTTYPE"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 });
@@ -219,4 +228,24 @@ test("names each Remove button after its attachment", () => {
   assert.deepEqual(buttons.map(button => button.attributes["aria-label"]),
     ["Remove https://example.com/doc.pdf", "Remove https://example.org/two"]);
   assert.equal(buttons[0].attributes.tooltiptext, "Remove https://example.com/doc.pdf");
+});
+
+test("shows where a link really goes when the invitation gives it another name", () => {
+  const phishing = webAttachment("https://evil.example/login", {
+    "X-FILENAME": "https://drive.twake.app/s/Budget-2027.xlsx",
+  });
+  assert.equal(data.displayName(phishing), "evil.example — https://drive.twake.app/s/Budget-2027.xlsx");
+  const sameAsUrl = webAttachment("https://drive.twake.app/s/a", { "X-FILENAME": "https://drive.twake.app/s/a" });
+  assert.equal(data.displayName(sameAsUrl), "https://drive.twake.app/s/a");
+});
+
+test("a link name cannot hide or reorder the host shown before it", () => {
+  const spoof = webAttachment("https://evil.example/x", {
+    "X-FILENAME": "Budget.xlsx (drive.twake.app)\u202E\u2066\u200B\r\nend",
+  });
+  assert.equal(data.displayName(spoof), "evil.example — Budget.xlsx (drive.twake.app) end");
+  const long = data.displayName(webAttachment("https://evil.example/x", { "X-FILENAME": "a".repeat(500) }));
+  assert.ok(long.startsWith("evil.example — "));
+  assert.equal(long.length, "evil.example — ".length + 100);
+  assert.equal(data.displayName(webAttachment("https://example.com/f", { "X-FILENAME": "\u202E\u200B" })), "https://example.com/f");
 });

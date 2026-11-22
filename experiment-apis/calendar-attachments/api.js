@@ -30,8 +30,29 @@ var CalendarAttachmentData = {
     if (this.isBinary(attachment)) {
       return this.fileName(attachment);
     }
-    return attachment.getParameter("X-FILENAME")?.trim() ||
-      attachment.getParameter("FILENAME")?.trim() || attachment.uri.spec;
+    const label = this.plainLabel(attachment.getParameter("X-FILENAME")) ||
+      this.plainLabel(attachment.getParameter("FILENAME"));
+    if (!label || label === attachment.uri.spec) {
+      return attachment.uri.spec;
+    }
+    // The sender of the event chooses the label: always show first where the
+    // link really goes, so that "Budget.xlsx" cannot hide a phishing site.
+    let host = "";
+    try {
+      host = attachment.uri.host;
+    } catch {
+      // No host: show the URL instead.
+    }
+    return `${host || attachment.uri.spec} — ${label}`;
+  },
+
+  // Label without control and formatting characters (bidi overrides and
+  // isolates, zero-width...), which could reorder or hide the host shown
+  // next to it, and short enough not to push it out of sight.
+  plainLabel(value) {
+    const label = String(value ?? "").replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
+      .replace(/\p{Cf}/gu, "").replace(/\s+/g, " ").trim();
+    return label.length > 100 ? `${label.slice(0, 99)}…` : label;
   },
 
   fileName(attachment) {
