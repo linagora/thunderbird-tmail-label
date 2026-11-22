@@ -9,8 +9,8 @@
   <div class="container">
     <header>
       <h1 data-i18n="popupTitle">Twake Mail</h1>
-      <div id="sync-status" class="status idle">
-        <span class="status-icon"></span>
+      <div id="sync-status" class="status idle" role="status">
+        <span class="status-icon" aria-hidden="true"></span>
         <span id="status-text" data-i18n="neverSynced">Never synced</span>
       </div>
     </header>
@@ -38,7 +38,7 @@
 
     <section class="sync-actions">
       <button id="sync-btn" class="btn btn-large">
-        <span class="icon sync-icon">↻</span>
+        <span class="icon sync-icon" aria-hidden="true">↻</span>
         <span data-i18n="syncNow">Sync Labels Now</span>
       </button>
     </section>

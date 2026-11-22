@@ -103,15 +103,18 @@ function renderAccounts() {
     return;
   }
 
+  // Buttons, so that the rows can be reached with Tab and activated with
+  // Return or Space; aria-current tells screen readers which one is shown.
   elements.accountsList.innerHTML = accounts
     .map(
       (account) => `
-    <div class="list-item ${account.id === currentAccountId ? "selected" : ""}"
-         data-account-id="${account.id}">
-      <div class="icon">📧</div>
-      <div class="name">${escapeHtml(account.name)}</div>
-      <div class="meta">${escapeHtml(account.serverHost)}</div>
-    </div>
+    <button type="button" class="list-item ${account.id === currentAccountId ? "selected" : ""}"
+         data-account-id="${escapeHtml(account.id)}"
+         aria-current="${account.id === currentAccountId}">
+      <span class="icon" aria-hidden="true">📧</span>
+      <span class="name">${escapeHtml(account.name)}</span>
+      <span class="meta">${escapeHtml(account.serverHost)}</span>
+    </button>
   `
     )
     .join("");
@@ -128,8 +131,15 @@ function renderAccounts() {
  * Select an account
  */
 async function selectAccount(accountId) {
+  const hadFocus = elements.accountsList.contains(document.activeElement);
   currentAccountId = accountId;
   renderAccounts();
+  if (hadFocus) {
+    // Re-rendering replaced the focused row: keep the focus on it.
+    [...elements.accountsList.querySelectorAll(".list-item")]
+      .find((item) => item.dataset.accountId === accountId)
+      ?.focus();
+  }
   await Promise.all([loadLabels(accountId), loadIdentities(accountId)]);
 }
 
