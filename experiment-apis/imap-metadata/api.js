@@ -258,16 +258,20 @@ var imapMetadata = class extends ExtensionAPI {
         ].createInstance(Ci.nsIScriptableInputStream);
         scriptStream.init(instream);
 
+        const trace = this.traceEnabled();
         let commandTag = 0;
         let capabilities = null;
         let state = "greeting";
         let responseBuffer = "";
         const items = [];
 
-        const sendCommand = (cmd) => {
+        // `shown` replaces the command in the trace: credentials are never logged.
+        const sendCommand = (cmd, shown = cmd) => {
           commandTag++;
           const fullCmd = `A${commandTag} ${cmd}\r\n`;
-          console.log("Twake Mail: Sending:", fullCmd.trim());
+          if (trace) {
+            console.log("Twake Mail: Sending:", `A${commandTag} ${shown}`);
+          }
           outstream.write(fullCmd, fullCmd.length);
         };
 
@@ -282,13 +286,15 @@ var imapMetadata = class extends ExtensionAPI {
 
               for (const line of lines) {
                 if (!line) continue;
-                console.log("Twake Mail: Received:", line);
+                if (trace) {
+                  console.log("Twake Mail: Received:", line);
+                }
                 capabilities = this.parseCapabilities(line) || capabilities;
 
                 if (state === "greeting") {
                   if (line.startsWith("* OK")) {
                     state = "login";
-                    sendCommand(`LOGIN ${username} ${password}`);
+                    sendCommand(`LOGIN ${username} ${password}`, "LOGIN <redacted>");
                   }
                 } else if (state === "login") {
                   if (line.match(/^A\d+ OK/) && capabilities &&
@@ -372,6 +378,19 @@ var imapMetadata = class extends ExtensionAPI {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Whether the raw IMAP exchange is logged. It holds signatures and Bcc
+   * addresses, so it is off unless the extensions.twake-mail.imap-trace
+   * preference is set.
+   */
+  traceEnabled() {
+    try {
+      return Services.prefs.getBoolPref("extensions.twake-mail.imap-trace", false);
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
