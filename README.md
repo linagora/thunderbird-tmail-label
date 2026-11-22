@@ -97,6 +97,26 @@ Configure Thunderbird:
 2. Install the extension
 3. Click the extension icon → Sync Labels
 
+## QA environment
+
+`scripts/qa-environment/` starts a disposable environment for manual or agent driven QA, in Docker only (Linux or any
+Docker host): tmail-backend (in memory, IMAP METADATA, JMAP) and Thunderbird on a virtual X display, the extension
+built from the working tree installed, the accounts `alice@example.com` and `bob@example.com` (password `secret`)
+configured, each with labels, a custom identity (HTML signature, reply-to, bcc) and mails tagged with them.
+
+```bash
+scripts/qa-environment/build.sh                                 # the Thunderbird of Debian trixie (an ESR)
+THUNDERBIRD_VERSION=128.5.0esr scripts/qa-environment/build.sh  # or any version of Mozilla; esr, latest, beta
+scripts/qa-environment/start.sh                                 # then a VNC viewer on 127.0.0.1:15900
+scripts/qa-environment/stop.sh
+```
+
+The Thunderbird of Mozilla is its Linux build from archive.mozilla.org, checked against the release's SHA512SUMS.
+Change the server side with JMAP (`http://127.0.0.1:18900/jmap`, basic authentication, `Label/set`, `Identity/set`)
+or the WebAdmin (`http://127.0.0.1:18901`). Agents drive the desktop through its MCP server (stdio,
+`docker exec -i tmail-label-qa-thunderbird /opt/desktop/desktop-mcp.py`): screenshots, mouse, keyboard, the AT-SPI
+accessibility tree (accessible names and roles, as screen readers get them) and Thunderbird's console.
+
 ## Project Structure
 
 ```
