@@ -46,7 +46,7 @@ test("reports a failed metadata read instead of an empty list", async () => {
 
 // Runs fetchMetadataViaRawImap against a fake IMAP server: `greeting` is its
 // first line, `answer(command)` the lines it sends back to each command.
-function fakeImap(greeting, answer) {
+function fakeImap(greeting, answer, { trace = false } = {}) {
   let buffer = `${greeting}\r\n`;
   const transport = {
     setTimeout() {},
@@ -78,8 +78,11 @@ function fakeImap(greeting, answer) {
     nsISocketTransportService: {}, nsIScriptableInputStream: {}, nsMsgSocketType: { SSL: 3 },
     nsISocketTransport: { TIMEOUT_CONNECT: 0, TIMEOUT_READ_WRITE: 1 }, nsIThread: { DISPATCH_NORMAL: 0 },
   };
-  scope.Services = { tm: { currentThread: { dispatch: runnable => setImmediate(() => runnable.run()) } } };
-  const server = { key: "server1", hostname: "imap.example.com", port: 143, username: "alice", password: "pw", socketType: 0 };
+  scope.Services = {
+    tm: { currentThread: { dispatch: runnable => setImmediate(() => runnable.run()) } },
+    prefs: { getBoolPref: (name, fallback) => name === "extensions.twake-mail.imap-trace" ? trace : fallback },
+  };
+  const server = { key: "server1", hostname: "imap.example.com", port: 143, username: "alice", password: "s3cret-pw", socketType: 0 };
   return api.fetchLabelsViaMetadata(server, null);
 }
 
@@ -110,4 +113,32 @@ test("reads capabilities from response codes and CAPABILITY responses", () => {
   assert.deepEqual(Array.from(api.parseCapabilities("* OK [CAPABILITY IMAP4rev1 metadata] ready")), ["IMAP4REV1", "METADATA"]);
   assert.deepEqual(Array.from(api.parseCapabilities("* CAPABILITY IMAP4rev1 METADATA-SERVER")), ["IMAP4REV1", "METADATA-SERVER"]);
   assert.equal(api.parseCapabilities("A1 OK LOGIN completed"), null);
+});
+
+// Calls `run` with console.log captured; returns the logged lines.
+async function captureLogs(run) {
+  const lines = [];
+  const quiet = scope.console;
+  scope.console = { ...quiet, log: (...args) => lines.push(args.join(" ")) };
+  try {
+    await run();
+  } finally {
+    scope.console = quiet;
+  }
+  return lines;
+}
+
+const twakeMail = (tag, command) =>
+  command.startsWith("GETMETADATA") ? [LABEL, `${tag} OK done`] : [`${tag} OK done`];
+
+test("never logs the password, even with the IMAP trace on", async () => {
+  const lines = await captureLogs(() => fakeImap("* OK [CAPABILITY IMAP4rev1 METADATA] ready", twakeMail, { trace: true }));
+  assert.ok(lines.some(line => line.includes("A1 LOGIN <redacted>")), lines.join("\n"));
+  assert.ok(lines.some(line => line.includes("Received: * METADATA")));
+  assert.equal(lines.filter(line => line.includes("s3cret-pw")).length, 0);
+});
+
+test("does not log the IMAP exchange unless the trace is on", async () => {
+  const lines = await captureLogs(() => fakeImap("* OK [CAPABILITY IMAP4rev1 METADATA] ready", twakeMail));
+  assert.equal(lines.filter(line => /Sending:|Received:/.test(line)).length, 0, lines.join("\n"));
 });

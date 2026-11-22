@@ -167,6 +167,11 @@ node --test tests/calendar-attachment-data.test.cjs
 1. Open Thunderbird → Tools → Developer Tools → Error Console
 2. Filter by "Twake Mail" to see extension logs
 
+The IMAP commands and responses of the label and identity sync are not logged by default: they hold
+signatures and Bcc addresses. To log them, set `extensions.twake-mail.imap-trace` to `true` in
+Settings → General → Config Editor. Credentials are never logged, even then; review the trace before
+sharing it, since it still contains the account's metadata.
+
 ### Creating XPI
 
 ```bash
