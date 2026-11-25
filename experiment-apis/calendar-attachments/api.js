@@ -60,8 +60,13 @@ var CalendarAttachmentData = {
       attachment.getParameter("X-FILENAME") || "attachment.bin");
   },
 
+  // File name without path separators, control characters or formatting
+  // characters (bidi overrides and isolates, zero-width...): the sender of
+  // the event chooses it, and "report\u202Efdp.exe" would otherwise be shown
+  // and proposed for saving as "reportexe.pdf".
   safeName(name) {
-    return String(name).replace(/[\x00-\x1f\x7f/\\:]/g, "_")
+    return String(name).replace(/[\p{Cc}\p{Zl}\p{Zp}/\\:]/gu, "_")
+      .replace(/\p{Cf}/gu, "")
       .replace(/^[. ]+|[. ]+$/g, "").slice(0, 180) || "attachment.bin";
   },
 
