@@ -159,6 +159,15 @@ test("uses a safe filename for untrusted event attachment parameters", () => {
   assert.equal(data.safeName("..."), "attachment.bin");
 });
 
+test("a file name cannot hide its real extension behind bidi or invisible characters", () => {
+  const spoof = data.fileName(attachment("AA==", { FILENAME: "report\u202Efdp.exe" }));
+  assert.equal(spoof, "reportfdp.exe");
+  assert.ok(spoof.endsWith(".exe"));
+  assert.equal(data.fileName(attachment("AA==", { "X-FILENAME": "Budget\u2066\u200B\u200F-2027\u2069xslx.exe" })), "Budget-2027xslx.exe");
+  assert.equal(data.safeName("line\u2028break\u2029\u0085.txt"), "line_break__.txt");
+  assert.equal(data.safeName("\u202E\u200B"), "attachment.bin");
+});
+
 test("enforces the file size boundary for both adding and downloading", () => {
   const bytes = new Uint8Array(data.MAX_FILE_BYTES);
   for (let offset = 0; offset < bytes.length; offset += 65536) {
